@@ -1,27 +1,31 @@
 /**
- * Orchestrator Main Pipeline (v3.0)
+ * Orchestrator Main Pipeline (v3.1)
  *
  * 실행 흐름:
- *   [0. o3.2 ARCHITECT]   plan.md → 프로젝트 구조 설계도
- *   [1. Sonnet ORCHESTRATOR] 설계도 → N개 태스크 분해 & 워커 할당
- *   [2. Kimi×N WORKERS]     태스크 병렬 코딩
- *   [2.5 Gemini DESIGNER]   UI 코드 디자인 검토
- *   [3. Qwen REVIEWER]      전수 보안/품질 검토
- *   [4. Sonnet INTEGRATOR]  통합 + 빌드 (미래 구현)
+ *   [1. ARCHITECT  o3.2]      plan.md → 프로젝트 구조 설계도
+ *   [2. ORCHESTRATOR Sonnet]  설계도 → N개 태스크 분해 & 워커 할당
+ *   [3. WORKERS Kimi×N]       태스크 병렬 코딩
+ *   [4. DESIGNER Gemini]      UI 코드 디자인 검토
+ *   [5. REVIEWER Qwen]        전수 보안/품질 검토
+ *   [6. FILE WRITER]          코드 파일 시스템에 자동 적용
+ *   [7. GITHUB PR]            자동 브랜치 생성 + PR 오픈
+ *   [8. NOTIFIER]             Slack 완료 알림
  *
  * 사용법: node orchestrator/index.js --plan ./plan.md --session 1 [--project /root/my-project]
  */
 
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
 
-const path             = require('path');
-const fs               = require('fs');
-const { callAgent }    = require('./openrouter-client');
-const CostTracker      = require('./cost-tracker');
-const notifier         = require('./notifier');
+const path              = require('path');
+const fs                = require('fs');
+const { callAgent }     = require('./openrouter-client');
+const CostTracker       = require('./cost-tracker');
+const notifier          = require('./notifier');
 const { getSession, partitionTasks } = require('./plan-parser');
-const WorkerPool       = require('./worker-pool');
+const WorkerPool        = require('./worker-pool');
 const CheckpointManager = require('./checkpoint');
+const FileWriter        = require('./file-writer');
+const GitHubIntegration = require('./github-integration');
 
 /* ── KILL SWITCH ─────────────────────────────────── */
 let killed = false;
@@ -33,11 +37,14 @@ function checkKilled() {
 }
 
 /* ── MAIN ─────────────────────────────────────────── */
-async function run({ planPath, sessionNumber, projectRoot, broadcast }) {
+async function run({ planPath, sessionNumber, projectRoot, broadcast, onAgentStart, onAgentDone }) {
   const log = (msg, type = 'system') => {
     console.log(`[Orchestrator] ${msg}`);
     if (broadcast) broadcast(msg, type);
   };
+
+  const agentStart = (role, task) => { if (onAgentStart) onAgentStart(role, task); };
+  const agentDone  = (role, cost) => { if (onAgentDone)  onAgentDone(role, cost); };
 
   const sessionId = `session-${sessionNumber}-${Date.now()}`;
   const startTime = Date.now();
@@ -74,6 +81,7 @@ async function run({ planPath, sessionNumber, projectRoot, broadcast }) {
 
     if (!architectOutput) {
       log('🏗 [ARCHITECT / o3.2] 프로젝트 구조 설계 중...');
+      agentStart('architect', '프로젝트 구조 설계 중...');
       const archPrompt = buildArchitectPrompt(session, projectRoot);
       const result = await callAgent('architect', [
         { role: 'system', content: '당신은 소프트웨어 아키텍처 전문가입니다. 코드 작성 전 프로젝트 구조, 파일 인터페이스, 의존성을 설계합니다. JSON으로만 응답하세요.' },
@@ -87,6 +95,7 @@ async function run({ planPath, sessionNumber, projectRoot, broadcast }) {
       architectOutput = parseJsonSafe(result.content);
       fs.writeFileSync(checkpoint.filePath('architect.json'), JSON.stringify(architectOutput, null, 2));
       checkpoint.markCompleted('architect');
+      agentDone('architect', result.costUSD);
     } else {
       log('♻️  [ARCHITECT] 체크포인트에서 복원됨');
     }
@@ -199,17 +208,81 @@ async function run({ planPath, sessionNumber, projectRoot, broadcast }) {
       log(`✅ [REVIEWER] 검토 완료 (점수: ${score}/100, 이슈: ${issues}건)`, 'success');
     }
 
-    // ── 6. 최종 리포트 ───────────────────────────────
+    // ── 6. FILE WRITER — 실제 파일시스템에 적용 ─────
+    checkKilled();
+    const allWorkerFiles = Object.values(workerResults).flatMap(r => r?.files || []);
+    let writeResult = { total: 0, success: false, errors: [] };
+    let prResult = null;
+
+    if (allWorkerFiles.length > 0 && !checkpoint.isCompleted('file_writer')) {
+      const applyFiles = process.env.AUTO_APPLY_FILES !== 'false'; // 기본 ON
+      if (applyFiles && projectRoot) {
+        log(`💾 [FILE WRITER] ${allWorkerFiles.length}개 파일 적용 중...`);
+        agentStart('integrator', `${allWorkerFiles.length}개 파일 적용 중...`);
+        const writer = new FileWriter(projectRoot, { backup: true, dryRun: false });
+        writeResult = writer.writeAll(allWorkerFiles);
+        if (writeResult.errors.length > 0) {
+          log(`⚠️  ${writeResult.errors.length}개 파일 쓰기 오류: ${writeResult.errors.map(e => e.path).join(', ')}`, 'warn');
+        } else {
+          log(`✅ [FILE WRITER] ${writeResult.total}개 파일 적용 완료`, 'success');
+        }
+        checkpoint.markCompleted('file_writer');
+        agentDone('integrator', 0);
+      } else {
+        log(`ℹ️  [FILE WRITER] AUTO_APPLY_FILES=false — 파일 적용 건너뜀 (확인 후 수동 적용)`);
+      }
+    }
+
+    // ── 7. GITHUB PR — 자동 브랜치 + PR 생성 ─────────
+    if (process.env.GITHUB_TOKEN && projectRoot && !checkpoint.isCompleted('github_pr')) {
+      checkKilled();
+      log('🐙 [GITHUB PR] 브랜치 생성 및 PR 오픈 중...');
+      const branchName = `agent/session-${sessionNumber}-${Date.now()}`;
+      const gh = new GitHubIntegration({
+        projectRoot,
+        token: process.env.GITHUB_TOKEN,
+        owner: process.env.GITHUB_OWNER,
+        repo:  process.env.GITHUB_REPO,
+        baseBranch: process.env.GITHUB_BASE_BRANCH || 'main',
+      });
+
+      const prBody = GitHubIntegration.buildPRBody({
+        sessionNumber,
+        sessionTitle: session.title,
+        tasksCount: session.tasks.length,
+        filesChanged: allWorkerFiles.length,
+        cost: tracker.summary().totalUSD,
+        reviewScore: reviewResult?.score,
+        summary: reviewResult?.issues?.slice(0, 3).map(i => `- **${i.severity}**: ${i.message}`).join('\n'),
+      });
+
+      prResult = await gh.commitAndPR({
+        branchName,
+        commitMessage: `feat(agent): Session ${sessionNumber} — ${session.title}`,
+        title: `🤖 [Agent] Session ${sessionNumber}: ${session.title}`,
+        body: prBody,
+      });
+
+      if (prResult?.ok) {
+        log(`✅ [GITHUB PR] PR 생성됨: ${prResult.url}`, 'success');
+        checkpoint.markCompleted('github_pr');
+      } else {
+        log(`⚠️  [GITHUB PR] PR 생성 실패: ${prResult?.error}`, 'warn');
+      }
+    }
+
+    // ── 8. 최종 리포트 ───────────────────────────────
     checkKilled();
     const duration = ((Date.now() - startTime) / 1000).toFixed(1);
     const costSummary = tracker.summary();
-    const filesChanged = Object.values(workerResults).flatMap(r => r?.files || []).length;
+    const filesChanged = allWorkerFiles.length;
 
     const summary = [
       `Session ${sessionNumber} 완료`,
       `태스크: ${session.tasks.length}개`,
-      `생성 파일: ${filesChanged}개`,
+      `적용 파일: ${writeResult.total}개 / 생성: ${filesChanged}개`,
       `검토 점수: ${reviewResult?.score || '—'}/100`,
+      `PR: ${prResult?.url || '없음'}`,
       `소요 시간: ${duration}초`,
       `총 비용: $${costSummary.totalUSD.toFixed(4)}`,
     ].join('\n');
@@ -224,7 +297,7 @@ async function run({ planPath, sessionNumber, projectRoot, broadcast }) {
       duration: `${duration}초`,
       costUSD: costSummary.totalUSD,
       filesChanged,
-      deployURL: null,
+      deployURL: prResult?.url || null,
       summary,
     });
 
@@ -234,6 +307,8 @@ async function run({ planPath, sessionNumber, projectRoot, broadcast }) {
       session,
       workerResults,
       reviewResult,
+      writeResult,
+      prResult,
       cost: costSummary,
       duration,
     };

@@ -1,240 +1,222 @@
-# 🛰 Agent Mission Control — 자율형 AI 오케스트라 플랫폼
+# 🛰 Agent Mission Control v3.1
 
-> **목표:** `plan.md`에 지시만 하면 사용자 정의 AI 에이전트 군단이 자율적으로 과업 분해 → 병렬 개발 → 검증 → 통합 → 배포를 수행하는 완전 자동화 관제탑 시스템입니다.
+**명령 하나로 AI 에이전트 군단이 코드를 분석·설계·구현·검토·PR까지 자동으로 완료합니다.**
 
----
-
-## 목차
-
-1. [프로젝트 개요 및 핵심 기능](#1-프로젝트-개요-및-핵심-기능)
-2. [전체 아키텍처 (어떻게 동작하는가?)](#2-전체-아키텍처-어떻게-동작하는가)
-3. [플랫폼 주요 특징](#3-플랫폼-주요-특징)
-4. [완전 자율화를 위한 보완 설계](#4-완전-자율화를-위한-보완-설계)
-5. [설치 및 서버 배포 가이드 (누구나 따라할 수 있는 매뉴얼)](#5-설치-및-서버-배포-가이드)
-6. [환경 변수 및 에이전트 설정 (.env)](#6-환경-변수-및-에이전트-설정)
-7. [개발 로드맵](#7-개발-로드맵)
-
----
-
-## 1. 프로젝트 개요 및 핵심 기능
-
-Agent Mission Control은 개발자가 원격 서버에 명령을 내릴 수 있는 **웹 기반 대시보드**이자, 다수의 AI 모델들이 협업하는 **오케스트라 실행 엔진**입니다.
-
-### 🌟 핵심 기능
-
-- **유연한 에이전트 로스터 (Agent Roster)**: 프로젝트의 성격이나 예산에 맞춰 총괄/개발/검증 등을 수행할 AI 모델을 **자유롭게 추가, 제거, 변경**할 수 있습니다. (OpenRouter를 통해 수많은 LLM 지원)
-- **동적 예산 관리 (Dynamic Budget Limit)**: 무한 루프나 과도한 API 호출을 방지하기 위해 **사용자가 직접 예산 한도를 설정**할 수 있습니다. 한도(예: $10, $50 등) 도달 시 모든 활동이 즉각 중지됩니다.
-- **실시간 차량용 대시보드 UI**: 자동차 계기판처럼 현재 어떤 에이전트가 무슨 작업을 하며 얼마나 진행했는지 시각적인 애니메이션으로 모니터링할 수 있습니다.
-- **임의 쉘 제어 및 보안**: 안전한 White-list 명령뿐만 아니라 필요 시 강력한 권한 통제하에 임의의 터미널 명령도 대시보드에서 직접 수행할 수 있습니다.
-
----
-
-## 2. 전체 아키텍처 (어떻게 동작하는가?)
-
-완전 자동화를 위해 각 역할을 맡은 에이전트들이 릴레이 및 병렬로 작업을 수행합니다.
-
-```text
-나 (사용자) : "plan.md의 세션 3을 실행해!"
-                        ↓
-[0. 구조 설계자] (OpenAI o3.2)
-🧠 plan.md를 읽고 프로젝트 구조, 파일 트리, 인터페이스 설계도를 먼저 그립니다.
-                        ↓
-[1. 총괄 오케스트레이터] (예: Claude 3.5 Sonnet / Opus)
-📝 설계도를 바탕으로 파일 충돌 없는 N개의 병렬 과업(Task)으로 분해합니다.
-                        ↓
-[2. 병렬 개발 워커 풀] (Kimi, Qwen, GPT-4o 등 유동적 조합)
-┌───────────────┬───────────────┬───────────────┐
-│ 워커 A (Task 1)│ 워커 B (Task 2)│ 워커 C (Task 3)│ ← 동시 코딩
-└───────────────┴───────────────┴───────────────┘
-                        ↓
-[2.5. 디자인 전문가] (Gemini)
-🎨 UI 컴포넌트의 색상, 레이아웃, 애니메이션 등 디자인 품질을 검토·보정합니다.
-                        ↓
-[3. 전수 보안/품질 검토] (예: Qwen 3.5)
-🔍 모든 코드를 스캔하여 취약점, 문법 오류, 안티패턴을 찾아냅니다.
-                        ↓
-[4. 최종 통합 및 배포] (예: Claude 3.5 Sonnet)
-🤝 흩어진 코드를 하나로 병합(Merge) → 빌드 → Staging 검증 → Vercel 자동 배포.
-                        ↓
-[5. Slack 알림]
-나 (사용자) : "✅ 세션 3 완료! 비용: $2.40 / URL: https://..." (실시간 Slack 통보)
+```
+명령 실행 → AI 설계 → 병렬 코딩 → 코드 리뷰 → 파일 자동 적용 → GitHub PR 생성 → Slack 알림
 ```
 
 ---
 
-## 3. 플랫폼 주요 특징
+## ✨ 주요 기능
 
-### 🚗 시각적 에이전트 모니터링 보드판
-
-대시보드 접속 시 서버 프로세스 상태(pm2)와 AI 에이전트들의 두뇌 활동 상태가 동시에 표시됩니다.
-어떤 에이전트가 '대기 중(Idle)'인지, '열일 중(Running)'인지 한눈에 파악할 수 있는 애니메이션 보드판을 제공합니다.
-
-### 🛠️ 나만의 에이전트 팀 구성 (Plug-and-Play)
-
-특정 모델(Opus, Sonnet 등)에 종속되지 않습니다. OpenRouter API를 활용하여 상황에 맞춰 팀을 다시 짤 수 있습니다.
-
-- 코딩을 잘하는 AI를 워커 여러 개로 클론 생성
-- 리뷰가 꼼꼼한 AI를 보안 점검에 단일 배치
-
-### 💰 완벽한 비용 통제 시스템
-
-API 호출 한 번마다 소모된 토큰량을 수집해 누적 비용을 계산합니다.
-사용자가 설정한 `$LIMIT_USD`에 다다르면 프로세스를 멈춰 예상치 못한 "요금 폭탄"을 원천 차단합니다.
+| 기능                            | 설명                                            |
+| ------------------------------- | ----------------------------------------------- |
+| 🏗 **Architect AI (o3.2)**      | plan.md 분석 → 프로젝트 구조 및 인터페이스 설계 |
+| 🎯 **Orchestrator AI (Claude)** | 태스크 병렬 분배 (파일 충돌 없는 그룹 생성)     |
+| ⚡ **Workers AI ×N (Kimi)**     | 최대 N개 동시 코드 구현                         |
+| 🎨 **Designer AI (Gemini)**     | UI/UX 코드 품질 검토 및 개선 제안               |
+| 🔍 **Reviewer AI (Qwen)**       | 보안·품질 전수검사 → 점수 + 이슈 리포트         |
+| 💾 **File Writer**              | 생성 코드 자동 적용 (백업 + 롤백 지원)          |
+| 🐙 **GitHub PR**                | 연동 브랜치 생성 + PR 자동 오픈                 |
+| 📡 **Slack 알림**               | 세션 시작/완료/예산초과 실시간 알림             |
+| 🛑 **Kill Switch**              | 전체 파이프라인 즉시 중단                       |
+| 💰 **예산 제어**                | 달러 한도 설정 → 초과 시 자동 중단              |
 
 ---
 
-## 4. 완전 자율화를 위한 보완 설계
+## 📁 프로젝트 구조
 
-"명령만 하면 끝"이라는 목표를 안전하게 달성하려면, 아래 5가지 보완 설계가 반드시 필요합니다.
-
-### 4.1. 🧩 컨텍스트 주입 (RAG — Retrieval-Augmented Generation)
-
-AI 워커가 기존 코드베이스의 패턴(Firebase `getDb()` 헬퍼, Tailwind 컨벤션 등)을 모르면 엉뚱한 코드를 씁니다.
-**해결:** `orchestrator/rag-loader.js`가 기존 소스 파일을 벡터 임베딩으로 색인하고, 각 워커에게 태스크와 관련된 파일 상위 10개를 자동으로 컨텍스트에 주입합니다.
-
-### 4.2. 🏗️ 스테이징(Staging) 검증 단계
-
-`pnpm run build` 성공만으로는 부족합니다. 빌드는 되지만 화면이 깨지거나 API가 동작하지 않을 수 있습니다.
-**해결:** Vercel Preview Deployment(스테이징)에 먼저 배포한 뒤, Playwright/Puppeteer 등으로 핵심 페이지 스크린샷을 찍어 이전 버전과 비교하는 **Visual Regression Test**를 자동 수행합니다. 통과해야만 Production에 올립니다.
-
-### 4.3. 🔙 자동 롤백 (Rollback) 메커니즘
-
-배포 후 사이트가 다운되면? 사용자가 잠든 사이에 서비스가 죽어있을 수 있습니다.
-**해결:** 배포 후 60초간 `https://배포URL` 에 Health Check(200 OK) 핑을 보냅니다. 실패 시 직전의 안정 커밋으로 자동 `git revert` + 재배포를 수행하고 Slack으로 긴급 알림을 보냅니다.
-
-### 4.4. 💾 세션 상태 저장 및 재개 (Checkpoint)
-
-오케스트레이션 도중 서버가 재부팅되거나 API 오류로 중단되면 처음부터 다시 시작해야 할까요?
-**해결:** 각 단계(분해 완료 / 워커 1 완료 / 워커 2 완료 ...)마다 `.agents/workspace/session-{id}/checkpoint.json`에 진행 상태를 저장합니다. 서버 복구 후 마지막 체크포인트부터 자동으로 재개합니다.
-
-### 4.5. 🛑 킬스위치 (Kill Switch) 및 무한 루프 방지
-
-AI가 환각(Hallucination)에 빠져 코드를 썼다가 지웠다가 무한 반복하면 비용이 폭발합니다.
-**해결:**
-
-- 동일 파일에 대한 수정 시도가 **5회를 초과**하면 해당 워커를 즉각 중지
-- 세션 전체 비용이 `BUDGET_LIMIT_USD × 0.8` (경고선)에 도달하면 Slack 경고 → `× 1.0`에 도달하면 전체 Kill
-- 대시보드에 **[🛑 긴급 정지]** 버튼 배치 → 원클릭으로 모든 AI 활동 즉시 중단
+```
+agent-mission-control/
+├── server.js                    # Express + WebSocket 서버 (v3.0)
+├── public/
+│   └── dashboard.html           # 관제 대시보드 UI
+├── orchestrator/
+│   ├── index.js                 # ★ 8단계 자율화 파이프라인
+│   ├── plan-parser.js           # plan.md → 세션/태스크 파싱
+│   ├── worker-pool.js           # 병렬 워커 실행 풀
+│   ├── checkpoint.js            # 중단 후 재개 (체크포인트)
+│   ├── file-writer.js           # 코드 파일 자동 적용 + 롤백
+│   ├── github-integration.js    # GitHub PR 자동 생성
+│   ├── openrouter-client.js     # OpenRouter API 클라이언트
+│   ├── cost-tracker.js          # 비용 추적 + 예산 제어
+│   └── notifier.js              # Slack 웹훅 알림
+├── .env.example                 # 환경 변수 템플릿
+├── package.json
+└── plan.md                      # 자율화할 작업 계획 파일 (직접 작성)
+```
 
 ---
 
-## 5. 설치 및 서버 배포 가이드
+## 🚀 빠른 시작 (서버)
 
-이 서버 관리 도구는 누구나 자신의 리눅스 가상 컴퓨터(VPS) 등에 올리고 사용할 수 있도록 구성되었습니다.
-
-### 4.1. 서버 기본 환경 구성 (Ubuntu/CentOS 대응)
-
-서버(SSH)에 접속하여 필수 패키지를 설치합니다.
+### 1. 설치
 
 ```bash
-# Node.js (v20 이상 권장) 설치
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt-get install -y nodejs   # Ubuntu
-# sudo yum install -y nodejs     # CentOS
-
-# 프로세스 매니저(pm2) 설치 - 백그라운드 무중단 실행을 위해 필수
-sudo npm install -g pm2
-```
-
-### 4.2. 원격 레포지토리 연결
-
-가장 쉬운 방법은 GitHub CLI를 활용하는 것입니다.
-
-```bash
-# GitHub CLI 설치 후 로그인
-# 프롬프트에 따라 브라우저 인증 또는 토큰 인증을 완료하세요.
-gh auth login
-
-# 코드가 저장될 디렉토리(예: /root/my-project)로 클론
-gh repo clone YOUR_GITHUB_USERNAME/YOUR_REPO_NAME ~/my-project
-```
-
-### 4.3. Mission Control 서버 실행
-
-클론한 프로젝트 안의 `mission-control-server` 폴더로 이동합니다.
-
-```bash
-cd ~/my-project/agents_에이전트오케스트라/mission-control-server
-
-# 의존성 설치
+git clone https://github.com/leejun-cloud/agent-mission-control.git
+cd agent-mission-control
 npm install
-
-# 환경 설정 파일 복사 및 수정 (아래 5장 참조)
-cp .env.example .env
-nano .env
-
-# pm2를 통해 백그라운드 실행
-pm2 start server.js --name mission-control
-
-# 서버 재부팅 시에도 자동 실행되도록 등록
-pm2 save
-pm2 startup
 ```
 
-이제 브라우저에서 `http://서버공인IP:4000` 으로 접속하여 대시보드를 확인할 수 있습니다.
-
----
-
-## 6. 환경 변수 및 에이전트 설정
-
-`.env` 파일을 열어 다음 설정값들을 자신의 환경에 맞게 기입합니다.
+### 2. 환경 설정
 
 ```bash
-# ============================
-# 서버 및 보안 설정
-# ============================
-PORT=4000
-DASHBOARD_PASSWORD="초강력비밀번호입력!!!!"
-JWT_SECRET="임의의_긴_문자열_여기에_입력"
+cp .env.example .env
+nano .env  # 아래 필수 항목 입력
+```
 
-# 루트 경로 (관제할 프로젝트들의 최상위 폴더)
-PROJECT_ROOT=/root
+**필수 설정:**
 
-# ============================
-# AI 에이전트 및 예산 설정
-# ============================
-OPENROUTER_API_KEY="sk-or-v1-..."
+```env
+DASHBOARD_PASSWORD=your-strong-password    # 대시보드 로그인 비밀번호
+OPENROUTER_API_KEY=sk-or-v1-...            # OpenRouter API 키
+BUDGET_LIMIT_USD=10                        # AI 예산 한도 (달러)
+SLACK_WEBHOOK_URL=https://hooks.slack.com/... # Slack 알림 웹훅
+```
 
-# 예산 한도 (원하는 한도를 자유롭게 입력하세요. 예: 10, 50, 100)
-BUDGET_LIMIT_USD=10
+**GitHub PR 자동화 (선택):**
 
-# [에이전트 커스텀 셋업]
-# OpenRouter 모델 ID를 입력해 원하는 팀을 구성할 수 있습니다.
-# 역할에 맞지 않는 모델이면 교체하세요. 추가/삭제 자유.
-AGENT_ARCHITECT="openai/o3-mini"                         # 구조/아키텍처 설계 담당 (NEW)
-AGENT_ORCHESTRATOR="anthropic/claude-3.5-sonnet"        # 총괄 과업 분리 담당
-AGENT_WORKER="moonshot/kimi-2.5"                        # 병렬 코딩 담당 (여러 개 실행됨)
-AGENT_DESIGNER="google/gemini-2.5-pro"                   # UI/디자인 검토 담당 (NEW)
-AGENT_REVIEWER="qwen/qwen-2.5-coder-32b-instruct"       # 보안/코드 품질 검수 담당
-AGENT_INTEGRATOR="anthropic/claude-3.5-sonnet"          # 코드 병합 및 최종 빌드 담당
+```env
+GITHUB_TOKEN=ghp_...        # GitHub Personal Access Token (repo 권한)
+GITHUB_OWNER=leejun-cloud   # GitHub 사용자명 또는 org명
+GITHUB_REPO=famiy-achive    # 대상 레포명
+AUTO_APPLY_FILES=true        # 워커 결과 자동 파일 적용 여부
+```
 
-# ============================
-# 인프라 연동 (배포 및 알림)
-# ============================
-VERCEL_TOKEN="..."
-SLACK_WEBHOOK_URL="https://hooks.slack.com/..."
+### 3. 서버 시작
+
+```bash
+# 개발 환경
+node server.js
+
+# 프로덕션 (PM2)
+pm2 start server.js --name mission-control
+pm2 save
+```
+
+접속: `http://YOUR_SERVER_IP:4000`
+
+---
+
+## 📋 plan.md 작성 방법
+
+오케스트레이터가 읽는 작업 계획 파일입니다. 프로젝트 루트에 `plan.md`를 만드세요.
+
+```markdown
+# Project: 내 프로젝트 이름
+
+## Session 1: 인증 시스템 구현
+
+### Task 1.1: JWT 로그인 API
+
+- 파일: `src/api/auth.js`, `src/middleware/auth.js`
+- 설명: POST /api/login → JWT 토큰 발급. bcrypt 비밀번호 검증.
+
+### Task 1.2: 회원가입 API
+
+- 파일: `src/api/register.js`
+- 설명: POST /api/register → 이메일 중복 검사 + 비밀번호 해싱 후 저장.
+
+## Session 2: UI 컴포넌트 개발
+
+### Task 2.1: 로그인 폼
+
+- 파일: `src/components/LoginForm.tsx`
+- 설명: React 컴포넌트. 이메일/비밀번호 입력 + 유효성 검사.
 ```
 
 ---
 
-## 7. 개발 로드맵
+## 🎮 대시보드 사용법
 
-현재 Agent Mission Control은 점진적인 고도화를 거치며 발전 중입니다.
+### ORCHESTRATE 탭 (핵심)
 
-- [x] **v2.1**: 웹소켓 실시간 터미널 로그 스트리밍, pm2 에이전트 상태 모니터링
-- [x] **v2.2**: 임의 쉘 명령 실행, 사용자 정의 미션 등록, AI 모델 카드 UI
-- [ ] **v3.0**: OpenRouter 연동 + OpenAI o3.2(설계) / Gemini(디자인) 에이전트 추가, 병렬 워커 엔진, 실시간 비용 추적, RAG 컨텍스트 주입
-- [ ] **v4.0**: 자동 Staging → Visual Regression Test → Production 배포, 자동 롤백, 세션 체크포인트 복구, 킬스위치, Slack 실시간 알림 연동 — **사람 개입 0% 자율 루프 완성**
+1. **ORCHESTRATE** 탭 클릭
+2. 드롭다운에서 실행할 `plan.md` 세션 선택
+3. **▶ RUN** 클릭 → 터미널에서 실시간 로그 확인
+4. 8단계 파이프라인이 자동 실행됨:
+   - `🏗 ARCHITECT` → `🎯 ORCHESTRATOR` → `⚡ WORKERS` → `🎨 DESIGNER` → `🔍 REVIEWER` → `💾 FILE WRITER` → `🐙 GITHUB PR` → `📡 SLACK`
 
-### 에이전트 파이프라인 한눈에 보기
+### AI 에이전트 모델 변경
 
-```text
-[o3.2 설계] → [Opus/Sonnet 분해] → [Kimi×N 병렬코딩] → [Gemini 디자인검토]
-   → [Qwen 보안검토] → [Sonnet 통합+빌드] → [Staging 테스트]
-   → [Production 배포] → [Health Check] → [Slack 알림]
-   → (실패 시) → [자동 롤백 + 긴급 알림]
+ORCHESTRATE 탭 하단 **AI AGENT MODEL CONFIG**에서 각 역할의 모델을 실시간 변경 가능합니다:
+
+- 입력창에 OpenRouter 모델 ID 입력 후 `Tab` 또는 클릭 아웃
+- 즉시 적용 (서버 재시작 불필요)
+
+### 커스텀 미션
+
+MISSIONS 탭 → **+ ADD CUSTOM MISSION**:
+
+- `ID`: 고유 식별자
+- `Label`: 화면에 표시될 이름
+- `Command`: 실행할 쉘 명령어
+
+---
+
+## ⌨️ CLI로 직접 실행
+
+서버 없이 터미널에서 직접 실행할 수 있습니다:
+
+```bash
+node orchestrator/index.js \
+  --plan ./plan.md \
+  --session 1 \
+  --project /root/my-project
 ```
 
-### 💡 기여 가이드
+| 옵션        | 설명                         | 기본값        |
+| ----------- | ---------------------------- | ------------- |
+| `--plan`    | plan.md 경로                 | `./plan.md`   |
+| `--session` | 실행할 세션 번호             | `1`           |
+| `--project` | 파일 적용 대상 프로젝트 경로 | 현재 디렉토리 |
 
-오케스트레이터의 동시성 충돌(Git Conflict) 관리, AI 무한 루프 킬스위치 로직, Visual Regression Testing 파이프라인 등에 대한 아이디어가 있다면 자유롭게 이슈를 남기거나 PR을 올려주세요.
+---
+
+## 🔌 REST API
+
+| Method   | Endpoint                  | 설명                    |
+| -------- | ------------------------- | ----------------------- |
+| POST     | `/api/auth/login`         | 로그인 → JWT 토큰       |
+| GET      | `/api/agents/ai`          | AI 에이전트 상태 조회   |
+| GET/POST | `/api/agents/config`      | 에이전트 모델 조회/변경 |
+| GET/POST | `/api/plan`               | plan.md 조회/저장       |
+| POST     | `/api/orchestrate`        | 파이프라인 실행 시작    |
+| GET      | `/api/orchestrate/status` | 파이프라인 실행 상태    |
+| POST     | `/api/shell`              | 임의 쉘 명령 실행       |
+| GET      | `/api/cost`               | 비용 현황               |
+| POST     | `/api/cost/reset`         | 비용 초기화 + 한도 변경 |
+| POST     | `/api/emergency-stop`     | 전체 긴급 정지          |
+
+모든 API는 `Authorization: Bearer <token>` 헤더 필요.
+
+---
+
+## 💡 AI 에이전트 커스터마이징
+
+`.env`에서 각 역할의 OpenRouter 모델을 자유롭게 교체하세요:
+
+```env
+# 예시: 더 저렴한 모델로 교체
+AGENT_ARCHITECT=openai/gpt-4o
+AGENT_WORKER=deepseek/deepseek-coder
+AGENT_REVIEWER=meta-llama/llama-3.1-70b-instruct:nitro
+```
+
+[OpenRouter 모델 목록](https://openrouter.ai/models) 참조.
+
+---
+
+## 🛡 보안 주의사항
+
+- `DASHBOARD_PASSWORD`와 `JWT_SECRET`을 반드시 강한 값으로 변경하세요
+- `GITHUB_TOKEN`은 필요한 최소 권한(repo)만 부여하세요
+- `AUTO_APPLY_FILES=false`로 설정하면 파일 자동 적용 없이 검토 후 수동 적용 가능
+- 파일 작성 시 프로젝트 루트 외부 경로는 자동으로 차단됩니다
+
+---
+
+## 📄 라이선스
+
+MIT License — @leejun-cloud
