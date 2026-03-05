@@ -542,6 +542,7 @@ body::before {
         </div>
         <button class="tab-btn active" onclick="switchTab('terminal', this)">TERMINAL</button>
         <button class="tab-btn" onclick="switchTab('missions', this)">MISSIONS</button>
+        <button class="tab-btn" onclick="switchTab('orchestrate', this)">ORCHESTRATE</button>
         <button class="tab-btn" onclick="switchTab('shell', this)">SHELL</button>
         <div class="tab-spacer"></div>
         <button class="tab-clear-btn" onclick="clearTerminal()">CLEAR</button>
@@ -591,6 +592,44 @@ body::before {
               <button class="form-btn" onclick="addCustomMission()">ADD</button>
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- TAB: ORCHESTRATE -->
+      <div class="tab-pane" id="pane-orchestrate">
+        <div class="missions-pane">
+
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+            <div style="display:flex;align-items:center;gap:7px">
+              <div class="card-bar" style="background:var(--purple)"></div>
+              <div class="card-lbl">AI ORCHESTRATION PIPELINE</div>
+            </div>
+            <div style="font-size:9px;color:var(--muted2);font-family:var(--mono)" id="orch-status-badge">IDLE</div>
+          </div>
+
+          <!-- Plan Sessions -->
+          <div class="add-mission-card" style="margin-bottom:12px">
+            <div class="add-mission-title">PLAN.MD SESSION</div>
+            <div class="form-row" style="margin-bottom:0">
+              <select class="form-input" id="orch-session" style="cursor:pointer">
+                <option value="">plan.md 로드 중...</option>
+              </select>
+              <button class="form-btn" onclick="loadPlanSessions()" style="background:var(--surface2);border:1px solid var(--border);color:var(--muted2)">↻ RELOAD</button>
+              <button class="form-btn" id="orch-run-btn" onclick="runOrchestration()" style="background:linear-gradient(135deg,var(--purple),var(--accent));min-width:90px">▶ RUN</button>
+            </div>
+          </div>
+
+          <!-- Pipeline Steps -->
+          <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px" id="pipeline-steps">
+            <!-- filled by JS -->
+          </div>
+
+          <!-- Agent Model Config -->
+          <div class="add-mission-card">
+            <div class="add-mission-title">AI AGENT MODEL CONFIG</div>
+            <div id="agent-config-list" style="display:flex;flex-direction:column;gap:6px"></div>
+          </div>
+
         </div>
       </div>
 
@@ -691,6 +730,11 @@ function switchTab(name, el) {
   document.getElementById(`pane-${name}`).classList.add('active');
   if (name === 'missions') loadMissions();
   if (name === 'shell') loadShellHistory();
+  if (name === 'orchestrate') {
+    renderPipelineSteps([]);
+    loadPlanSessions();
+    loadAgentConfig();
+  }
 }
 
 /* ── PROJECTS ─────────────────────────────────────── */
@@ -900,6 +944,126 @@ async function deleteCustomMission(id, e) {
   if (!confirm(`미션 "${id}"를 삭제할까요?`)) return;
   const r = await api(`/api/missions/custom/${id}`, { method: 'DELETE' });
   if (r.ok) { showToast('삭제됨', 'ok'); loadMissions(); }
+}
+
+/* ── ORCHESTRATION ───────────────────────────────── */
+const PIPELINE_STAGES = [
+  { icon: '🏗', label: 'ARCHITECT', role: 'architect', desc: '프로젝트 구조 설계' },
+  { icon: '🎯', label: 'ORCHESTRATOR', role: 'orchestrator', desc: '태스크 분해 및 워커 할당' },
+  { icon: '⚡', label: 'WORKERS (×N)', role: 'worker', desc: '병렬 코드 구현' },
+  { icon: '🎨', label: 'DESIGNER', role: 'designer', desc: 'UI/UX 디자인 검토' },
+  { icon: '🔍', label: 'REVIEWER', role: 'reviewer', desc: '보안 및 품질 전수 검토' },
+  { icon: '🤝', label: 'INTEGRATOR', role: 'integrator', desc: '통합 및 배포' },
+];
+
+function renderPipelineSteps(agentStates = []) {
+  const el = document.getElementById('pipeline-steps');
+  const stateMap = {};
+  agentStates.forEach(a => { stateMap[a.role] = a; });
+
+  el.innerHTML = PIPELINE_STAGES.map((s, idx) => {
+    const state = stateMap[s.role] || {};
+    const statusCls = state.status === 'running' ? 'start' : state.status === 'idle' && state.task === '완료' ? 'success' : '';
+    const progress = state.progress || 0;
+    return `
+      <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;${state.status==='running'?'border-color:var(--accent);background:rgba(99,102,241,0.05)':''}">
+        <span style="font-size:14px;flex-shrink:0">${s.icon}</span>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:6px">
+            <span style="font-size:10px;font-weight:800;font-family:var(--mono);color:${state.status==='running'?'var(--accent)':state.task==='완료'?'var(--success)':'var(--muted2)'}">${s.label}</span>
+            ${state.status==='running' ? '<span style="font-size:8px;color:var(--accent);font-family:var(--mono);animation:blink 0.8s infinite">● LIVE</span>' : ''}
+          </div>
+          <div style="font-size:9px;color:var(--muted2);font-family:var(--mono)">${state.task || s.desc}</div>
+          ${progress > 0 ? `<div style="margin-top:4px;height:2px;background:rgba(255,255,255,0.05);border-radius:2px;overflow:hidden"><div style="height:100%;width:${progress}%;background:linear-gradient(90deg,var(--accent),var(--cyan));border-radius:2px;transition:width 0.5s"></div></div>` : ''}
+        </div>
+        ${state.costUSD > 0 ? `<span style="font-size:9px;color:var(--warn);font-family:var(--mono);flex-shrink:0">$${state.costUSD.toFixed(4)}</span>` : `<span style="font-size:9px;color:var(--muted);font-family:var(--mono);">${idx+1}</span>`}
+      </div>`;
+  }).join('');
+}
+
+async function loadPlanSessions() {
+  try {
+    const r = await api('/api/plan');
+    if (!r.ok) return;
+    const d = await r.json();
+    const sel = document.getElementById('orch-session');
+    if (!d.exists || !d.sessions.length) {
+      sel.innerHTML = '<option value="">plan.md 없음 또는 세션 미정의</option>';
+      return;
+    }
+    sel.innerHTML = d.sessions.map(s =>
+      `<option value="${s.number}">Session ${s.number}: ${s.title}</option>`
+    ).join('');
+  } catch {
+    document.getElementById('orch-session').innerHTML = '<option value="">로드 실패</option>';
+  }
+}
+
+async function runOrchestration() {
+  const sessionNumber = document.getElementById('orch-session').value;
+  if (!sessionNumber) { showToast('세션을 선택하세요.', 'err'); return; }
+
+  const btn = document.getElementById('orch-run-btn');
+  btn.disabled = true; btn.textContent = '⏳ RUNNING...';
+  document.getElementById('orch-status-badge').textContent = 'RUNNING';
+  document.getElementById('orch-status-badge').style.color = 'var(--accent)';
+
+  // Switch to terminal to watch live logs
+  document.querySelectorAll('.tab-btn')[0].click();
+  addLog(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`, 'system');
+  addLog(`🛰 오케스트레이션 시작 — Session ${sessionNumber}`, 'start');
+
+  try {
+    const r = await api('/api/orchestrate', { method: 'POST', body: { sessionNumber: parseInt(sessionNumber) } });
+    const d = await r.json();
+    if (!r.ok) {
+      addLog(`❌ 오케스트레이션 실패: ${d.error}`, 'error');
+      showToast(d.error, 'err');
+    } else {
+      addLog(`📡 ${d.message}`, 'system');
+      showToast('오케스트레이션 시작됨!', 'ok');
+      // Poll status every 5 seconds
+      const pollInterval = setInterval(async () => {
+        const sr = await api('/api/orchestrate/status');
+        if (!sr.ok) return;
+        const sd = await sr.json();
+        renderPipelineSteps(sd.agents || []);
+        if (!sd.active) {
+          clearInterval(pollInterval);
+          btn.disabled = false; btn.textContent = '▶ RUN';
+          document.getElementById('orch-status-badge').textContent = 'IDLE';
+          document.getElementById('orch-status-badge').style.color = '';
+        }
+      }, 5000);
+    }
+  } catch (e) {
+    addLog(`❌ 요청 오류: ${e.message}`, 'error');
+    btn.disabled = false; btn.textContent = '▶ RUN';
+  }
+}
+
+async function loadAgentConfig() {
+  try {
+    const r = await api('/api/agents/config');
+    if (!r.ok) return;
+    const d = await r.json();
+    const list = document.getElementById('agent-config-list');
+    const ROLE_ICONS = { architect:'🏗', orchestrator:'🎯', worker:'⚡', designer:'🎨', reviewer:'🔍', integrator:'🤝' };
+
+    list.innerHTML = Object.entries(d.config).map(([role, modelId]) => `
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:12px;flex-shrink:0">${ROLE_ICONS[role]||'🤖'}</span>
+        <span style="font-size:9px;font-weight:800;letter-spacing:1px;color:var(--muted2);font-family:var(--mono);width:80px;flex-shrink:0">${role.toUpperCase()}</span>
+        <input class="form-input" style="flex:1;padding:5px 10px;font-size:10px" value="${modelId}"
+          onblur="updateAgentModel('${role}', this.value)">
+      </div>`).join('');
+  } catch {}
+}
+
+async function updateAgentModel(role, modelId) {
+  if (!modelId.trim()) return;
+  const r = await api('/api/agents/config', { method: 'POST', body: { role, modelId: modelId.trim() } });
+  if (r.ok) showToast(`${role} → ${modelId}`, 'ok');
 }
 
 /* ── RUN MISSION ─────────────────────────────────── */

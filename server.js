@@ -448,6 +448,139 @@ wss.on('connection', (ws, req) => {
   }
 });
 
+// ── API: plan.md 관리 ──────────────────────────────────
+app.get('/api/plan', auth, (req, res) => {
+  const planPath = path.join(currentProject.root, 'plan.md');
+  if (!fs.existsSync(planPath)) {
+    return res.json({ exists: false, content: '', sessions: [] });
+  }
+  try {
+    const content = fs.readFileSync(planPath, 'utf8');
+    // 세션 목록 파싱 (간단한 ## 헤더 추출)
+    const sessions = [];
+    const lines = content.split('\n');
+    lines.forEach((line, i) => {
+      const m = line.match(/^## (.+)/);
+      if (m) {
+        const numMatch = m[1].match(/^Session\s+(\d+)/i) || m[1].match(/^(\d+)/);
+        sessions.push({
+          number: numMatch ? parseInt(numMatch[1]) : sessions.length + 1,
+          title: m[1].trim(),
+          line: i + 1,
+        });
+      }
+    });
+    res.json({ exists: true, content, sessions });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/plan', auth, (req, res) => {
+  const { content } = req.body;
+  if (!content) return res.status(400).json({ error: 'content 필수' });
+  const planPath = path.join(currentProject.root, 'plan.md');
+  fs.writeFileSync(planPath, content, 'utf8');
+  res.json({ ok: true, path: planPath });
+});
+
+// ── API: AI 에이전트 설정 변경 ─────────────────────────
+app.get('/api/agents/config', auth, (req, res) => {
+  res.json({ config: getAgentConfig() });
+});
+
+app.post('/api/agents/config', auth, (req, res) => {
+  const { role, modelId } = req.body;
+  if (!role || !modelId) return res.status(400).json({ error: 'role, modelId 필수' });
+  const envKey = `AGENT_${role.toUpperCase()}`;
+  process.env[envKey] = modelId;
+  agentStates[role] = { ...(agentStates[role] || {}), modelId };
+  res.json({ ok: true, config: getAgentConfig() });
+});
+
+// ── API: 오케스트레이터 실행 ───────────────────────────
+let activeOrchestration = null;
+
+app.post('/api/orchestrate', auth, async (req, res) => {
+  const { sessionNumber, planPath: customPlanPath } = req.body;
+  if (!sessionNumber) return res.status(400).json({ error: 'sessionNumber 필수' });
+  if (activeOrchestration) return res.status(409).json({ error: '이미 오케스트레이션이 실행 중입니다.' });
+
+  const planPath = customPlanPath || path.join(currentProject.root, 'plan.md');
+  if (!fs.existsSync(planPath)) {
+    return res.status(404).json({ error: `plan.md 없음: ${planPath}` });
+  }
+
+  // 즉시 응답 후 비동기 실행
+  res.json({ ok: true, sessionNumber, planPath, status: 'started', message: '오케스트레이터가 시작되었습니다. 터미널에서 실시간 로그를 확인하세요.' });
+
+  // WebSocket broadcast 함수
+  const broadcast = (msg, type = 'log') => {
+    const payload = JSON.stringify({ type, data: String(msg), source: 'orchestrator' });
+    wss.clients.forEach(c => {
+      if (c.readyState === WebSocket.OPEN) c.send(payload);
+    });
+  };
+
+  // 에이전트 상태 업데이트 헬퍼
+  const setAgentState = (role, state) => {
+    agentStates[role] = { ...(agentStates[role] || {}), ...state };
+  };
+
+  activeOrchestration = { sessionNumber, startedAt: Date.now() };
+
+  try {
+    // 각 에이전트를 idle로 초기화
+    for (const role of ['architect', 'orchestrator', 'worker', 'designer', 'reviewer', 'integrator']) {
+      setAgentState(role, { status: 'idle', task: null, progress: 0 });
+    }
+
+    setAgentState('architect', { status: 'running', task: '프로젝트 구조 설계 중...', progress: 10 });
+    broadcast(`🛰 오케스트레이터 v3.0 시작 — Session ${sessionNumber}`, 'start');
+
+    const { run } = require('./orchestrator/index');
+
+    const result = await run({
+      planPath,
+      sessionNumber: parseInt(sessionNumber),
+      projectRoot: currentProject.root,
+      broadcast,
+      onAgentStart: (role, task) => setAgentState(role, { status: 'running', task, progress: 20 }),
+      onAgentDone:  (role, cost) => setAgentState(role, { status: 'idle', task: '완료', progress: 100, costUSD: (agentStates[role]?.costUSD || 0) + cost }),
+    });
+
+    // 비용 반영
+    if (result.cost) {
+      costData.totalUSD += result.cost.totalUSD || 0;
+      costData.sessions.push({
+        session: sessionNumber,
+        cost: result.cost.totalUSD,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    broadcast(`✅ Session ${sessionNumber} 완료! 비용: $${result.cost?.totalUSD?.toFixed(4) || '0.0000'}`, 'success');
+  } catch (err) {
+    broadcast(`❌ 오케스트레이터 오류: ${err.message}`, 'error');
+  } finally {
+    activeOrchestration = null;
+    for (const role of Object.keys(agentStates)) {
+      if (agentStates[role]?.status === 'running') {
+        setAgentState(role, { status: 'idle', task: null });
+      }
+    }
+  }
+});
+
+app.get('/api/orchestrate/status', auth, (req, res) => {
+  res.json({
+    active: !!activeOrchestration,
+    ...activeOrchestration,
+    agents: Object.entries(agentStates).map(([role, s]) => ({ role, ...s })),
+    cost: costData,
+  });
+});
+
 // ── 루트: 대시보드 HTML ───────────────────────────────
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));

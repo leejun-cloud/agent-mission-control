@@ -1,57 +1,339 @@
 /**
- * Orchestrator Entry Point
- * plan.md의 세션을 읽고 에이전트 파이프라인을 실행합니다.
+ * Orchestrator Main Pipeline (v3.0)
  *
- * 사용법: node orchestrator/index.js --plan ./plan.md --session 3
+ * 실행 흐름:
+ *   [0. o3.2 ARCHITECT]   plan.md → 프로젝트 구조 설계도
+ *   [1. Sonnet ORCHESTRATOR] 설계도 → N개 태스크 분해 & 워커 할당
+ *   [2. Kimi×N WORKERS]     태스크 병렬 코딩
+ *   [2.5 Gemini DESIGNER]   UI 코드 디자인 검토
+ *   [3. Qwen REVIEWER]      전수 보안/품질 검토
+ *   [4. Sonnet INTEGRATOR]  통합 + 빌드 (미래 구현)
+ *
+ * 사용법: node orchestrator/index.js --plan ./plan.md --session 1 [--project /root/my-project]
  */
 
-const { callAgent } = require('./openrouter-client');
-const CostTracker   = require('./cost-tracker');
-const notifier      = require('./notifier');
+require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
 
-async function run(planPath, sessionNumber) {
-  console.log('🛰 Agent Mission Control — Orchestrator v3.0');
-  console.log(`📄 Plan: ${planPath}`);
-  console.log(`📋 Session: ${sessionNumber}`);
-  console.log('─'.repeat(50));
+const path             = require('path');
+const fs               = require('fs');
+const { callAgent }    = require('./openrouter-client');
+const CostTracker      = require('./cost-tracker');
+const notifier         = require('./notifier');
+const { getSession, partitionTasks } = require('./plan-parser');
+const WorkerPool       = require('./worker-pool');
+const CheckpointManager = require('./checkpoint');
+
+/* ── KILL SWITCH ─────────────────────────────────── */
+let killed = false;
+process.on('SIGTERM', () => { killed = true; });
+process.on('SIGINT',  () => { killed = true; });
+
+function checkKilled() {
+  if (killed) throw new Error('🛑 킬스위치 활성화 — 파이프라인 중단');
+}
+
+/* ── MAIN ─────────────────────────────────────────── */
+async function run({ planPath, sessionNumber, projectRoot, broadcast }) {
+  const log = (msg, type = 'system') => {
+    console.log(`[Orchestrator] ${msg}`);
+    if (broadcast) broadcast(msg, type);
+  };
+
+  const sessionId = `session-${sessionNumber}-${Date.now()}`;
+  const startTime = Date.now();
 
   const tracker = new CostTracker({
     warningRatio: 0.8,
-    onWarning: (msg) => notifier.notifyBudgetWarning(tracker.totalUSD, tracker.limitUSD),
-    onExceeded: (msg) => {
-      notifier.notifyEmergency(msg);
-      process.exit(1);
+    onWarning: async (msg) => {
+      log(msg, 'warn');
+      await notifier.notifyBudgetWarning(tracker.totalUSD, tracker.limitUSD);
+    },
+    onExceeded: async (msg) => {
+      log(msg, 'error');
+      await notifier.notifyEmergency(msg);
+      killed = true;
     },
   });
 
-  // TODO: Phase 2 구현 예정
-  // 1. plan-parser.js로 plan.md 파싱
-  // 2. AGENT_ARCHITECT (o3.2)에게 구조 설계 요청
-  // 3. AGENT_ORCHESTRATOR에게 태스크 분해 요청
-  // 4. worker-pool.js로 AGENT_WORKER × N 병렬 실행
-  // 5. AGENT_DESIGNER로 UI 검토
-  // 6. AGENT_REVIEWER로 보안 전수 검사
-  // 7. AGENT_INTEGRATOR로 통합 + 빌드
-  // 8. git-deploy.js로 자동 배포
-  // 9. notifier.js로 Slack 알림
+  const checkpoint = new CheckpointManager(sessionId);
+  log(`🛰 오케스트레이터 v3.0 시작 — Session ${sessionNumber}`, 'start');
 
-  console.log('\n⚠️  오케스트레이터 엔진은 Phase 2에서 구현 예정입니다.');
-  console.log('   현재는 server.js (대시보드)만 사용할 수 있습니다.\n');
+  try {
+    // ── 0. 세션 로드 ────────────────────────────────
+    checkKilled();
+    log('📄 plan.md 로드 중...');
+    const session = getSession(planPath, sessionNumber);
+    log(`✅ 세션 "${session.title}" 로드 완료 (태스크 ${session.tasks.length}개)`);
+    checkpoint.save({ stage: 'plan_loaded', session: { number: sessionNumber, title: session.title } });
+
+    // ── 1. ARCHITECT — 프로젝트 구조 설계 ──────────
+    checkKilled();
+    let architectOutput = checkpoint.isCompleted('architect') ?
+      JSON.parse(fs.readFileSync(checkpoint.filePath('architect.json'), 'utf8')) :
+      null;
+
+    if (!architectOutput) {
+      log('🏗 [ARCHITECT / o3.2] 프로젝트 구조 설계 중...');
+      const archPrompt = buildArchitectPrompt(session, projectRoot);
+      const result = await callAgent('architect', [
+        { role: 'system', content: '당신은 소프트웨어 아키텍처 전문가입니다. 코드 작성 전 프로젝트 구조, 파일 인터페이스, 의존성을 설계합니다. JSON으로만 응답하세요.' },
+        { role: 'user', content: archPrompt },
+      ], { temperature: 0.1, max_tokens: 2048 });
+
+      const budgetOk = tracker.record({ model: process.env.AGENT_ARCHITECT, role: 'architect', costUSD: result.costUSD, tokens: result.usage.total_tokens });
+      if (!budgetOk) throw new Error('예산 초과');
+      log(`✅ 설계 완료 (${result.usage.total_tokens} tokens, $${result.costUSD.toFixed(4)})`);
+
+      architectOutput = parseJsonSafe(result.content);
+      fs.writeFileSync(checkpoint.filePath('architect.json'), JSON.stringify(architectOutput, null, 2));
+      checkpoint.markCompleted('architect');
+    } else {
+      log('♻️  [ARCHITECT] 체크포인트에서 복원됨');
+    }
+
+    // ── 2. ORCHESTRATOR — 태스크 분해 ──────────────
+    checkKilled();
+    let taskGroups = checkpoint.isCompleted('orchestrate') ?
+      JSON.parse(fs.readFileSync(checkpoint.filePath('task-groups.json'), 'utf8')) :
+      null;
+
+    if (!taskGroups) {
+      log('🎯 [ORCHESTRATOR] 병렬 태스크 분해 중...');
+      const orchPrompt = buildOrchestratorPrompt(session, architectOutput);
+      const result = await callAgent('orchestrator', [
+        { role: 'system', content: '당신은 소프트웨어 팀 리드입니다. 주어진 세션을 파일 충돌 없는 독립적인 병렬 태스크로 분해합니다. JSON 배열로만 응답하세요.' },
+        { role: 'user', content: orchPrompt },
+      ], { temperature: 0.2, max_tokens: 2048 });
+
+      tracker.record({ model: process.env.AGENT_ORCHESTRATOR, role: 'orchestrator', costUSD: result.costUSD, tokens: result.usage.total_tokens });
+      log(`✅ 태스크 분해 완료 (${result.usage.total_tokens} tokens)`);
+
+      const parsedTasks = parseJsonSafe(result.content);
+      taskGroups = partitionTasks(Array.isArray(parsedTasks) ? parsedTasks : session.tasks);
+      fs.writeFileSync(checkpoint.filePath('task-groups.json'), JSON.stringify(taskGroups, null, 2));
+      checkpoint.markCompleted('orchestrate');
+    } else {
+      log(`♻️  [ORCHESTRATOR] 체크포인트 복원: ${taskGroups.length}개 그룹`);
+    }
+
+    log(`📦 ${taskGroups.length}개 워커 그룹 생성됨`);
+
+    // ── 3. WORKERS — 병렬 코딩 ──────────────────────
+    checkKilled();
+    const workerResults = {};
+
+    // 이미 완료된 워커는 스킵
+    const pendingGroups = taskGroups.filter((_, idx) => !checkpoint.isCompleted(`worker-${idx + 1}`));
+    const completedGroups = taskGroups.filter((_, idx) => checkpoint.isCompleted(`worker-${idx + 1}`)).length;
+    if (completedGroups > 0) log(`♻️  ${completedGroups}개 워커 체크포인트 복원됨`);
+
+    const pool = new WorkerPool({
+      maxConcurrency: Math.min(3, pendingGroups.length),
+      onWorkerStart: (wid, tasks) => log(`⚡ [WORKER ${wid}] 시작 — ${tasks.map(t => t.title || t.id).join(', ')}`, 'start'),
+      onWorkerDone:  (wid, result) => log(`✅ [WORKER ${wid}] 완료`, 'success'),
+      onWorkerError: (wid, err)   => log(`❌ [WORKER ${wid}] 오류: ${err.message}`, 'error'),
+    });
+
+    const poolResult = await pool.run(pendingGroups, async (tasks, workerId) => {
+      checkKilled();
+      const cacheKey = `worker-${workerId + completedGroups}-result.json`;
+      const prompt = buildWorkerPrompt(tasks, architectOutput, projectRoot);
+
+      const result = await callAgent('worker', [
+        { role: 'system', content: '당신은 시니어 풀스택 개발자입니다. 주어진 태스크의 코드를 정확히 구현하세요. 응답은 반드시 JSON 형태: {"files": [{"path": "...", "content": "..."}]}' },
+        { role: 'user', content: prompt },
+      ], { temperature: 0.2, max_tokens: 8192 });
+
+      const ok = tracker.record({ model: process.env.AGENT_WORKER, role: 'worker', costUSD: result.costUSD, tokens: result.usage.total_tokens, sessionId: `w${workerId}` });
+      if (!ok) throw new Error('예산 초과');
+
+      const parsed = parseJsonSafe(result.content);
+      fs.writeFileSync(checkpoint.filePath(cacheKey), JSON.stringify(parsed, null, 2));
+      checkpoint.markCompleted(`worker-${workerId + completedGroups}`);
+      workerResults[workerId] = parsed;
+      return parsed;
+    });
+
+    if (!poolResult.success) {
+      log(`⚠️  일부 워커 실패: ${poolResult.errors.map(e => e.error).join(', ')}`, 'warn');
+    }
+
+    // ── 4. DESIGNER — UI 디자인 검토 ────────────────
+    checkKilled();
+    const allFiles = Object.values(workerResults)
+      .flatMap(r => r?.files || [])
+      .filter(f => /\.(tsx?|jsx?|css|html)$/.test(f.path));
+
+    if (allFiles.length > 0 && !checkpoint.isCompleted('designer')) {
+      log('🎨 [DESIGNER / Gemini] UI 코드 디자인 검토 중...');
+      const designPrompt = buildDesignerPrompt(allFiles);
+      const result = await callAgent('designer', [
+        { role: 'system', content: '당신은 UI/UX 전문가입니다. 제공된 프론트엔드 코드의 디자인 품질을 검토하고 개선 사항을 JSON으로 제안하세요.' },
+        { role: 'user', content: designPrompt },
+      ], { temperature: 0.3, max_tokens: 4096 });
+
+      tracker.record({ model: process.env.AGENT_DESIGNER, role: 'designer', costUSD: result.costUSD, tokens: result.usage.total_tokens });
+      const feedback = parseJsonSafe(result.content);
+      fs.writeFileSync(checkpoint.filePath('designer-feedback.json'), JSON.stringify(feedback, null, 2));
+      checkpoint.markCompleted('designer');
+      log(`✅ [DESIGNER] 디자인 검토 완료 (제안 ${feedback?.suggestions?.length || 0}건)`, 'success');
+    }
+
+    // ── 5. REVIEWER — 보안/품질 전수 검토 ──────────
+    checkKilled();
+    let reviewResult = null;
+    if (!checkpoint.isCompleted('reviewer')) {
+      log('🔍 [REVIEWER / Qwen] 보안 및 품질 전수 검토 중...');
+      const reviewPrompt = buildReviewerPrompt(Object.values(workerResults).flatMap(r => r?.files || []));
+      const result = await callAgent('reviewer', [
+        { role: 'system', content: '당신은 보안 및 코드 품질 전문가입니다. 취약점, 버그, 안티패턴을 찾아 JSON으로 보고하세요: {"issues": [...], "score": 0-100}' },
+        { role: 'user', content: reviewPrompt },
+      ], { temperature: 0.1, max_tokens: 4096 });
+
+      tracker.record({ model: process.env.AGENT_REVIEWER, role: 'reviewer', costUSD: result.costUSD, tokens: result.usage.total_tokens });
+      reviewResult = parseJsonSafe(result.content);
+      fs.writeFileSync(checkpoint.filePath('review.json'), JSON.stringify(reviewResult, null, 2));
+      checkpoint.markCompleted('reviewer');
+      const score = reviewResult?.score || '?';
+      const issues = reviewResult?.issues?.length || 0;
+      log(`✅ [REVIEWER] 검토 완료 (점수: ${score}/100, 이슈: ${issues}건)`, 'success');
+    }
+
+    // ── 6. 최종 리포트 ───────────────────────────────
+    checkKilled();
+    const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+    const costSummary = tracker.summary();
+    const filesChanged = Object.values(workerResults).flatMap(r => r?.files || []).length;
+
+    const summary = [
+      `Session ${sessionNumber} 완료`,
+      `태스크: ${session.tasks.length}개`,
+      `생성 파일: ${filesChanged}개`,
+      `검토 점수: ${reviewResult?.score || '—'}/100`,
+      `소요 시간: ${duration}초`,
+      `총 비용: $${costSummary.totalUSD.toFixed(4)}`,
+    ].join('\n');
+
+    log(`\n${'━'.repeat(40)}\n${summary}\n${'━'.repeat(40)}`, 'success');
+    checkpoint.save({ stage: 'completed', ...costSummary });
+
+    // Slack 알림
+    await notifier.notifySessionComplete({
+      projectName: path.basename(projectRoot || 'project'),
+      sessionName: `Session ${sessionNumber}: ${session.title}`,
+      duration: `${duration}초`,
+      costUSD: costSummary.totalUSD,
+      filesChanged,
+      deployURL: null,
+      summary,
+    });
+
+    return {
+      ok: true,
+      sessionNumber,
+      session,
+      workerResults,
+      reviewResult,
+      cost: costSummary,
+      duration,
+    };
+
+  } catch (err) {
+    log(`❌ 오케스트레이터 오류: ${err.message}`, 'error');
+    await notifier.notifyEmergency(`Session ${sessionNumber} 실패: ${err.message}`);
+    throw err;
+  }
 }
 
-// CLI 실행
+/* ── PROMPT BUILDERS ─────────────────────────────── */
+function buildArchitectPrompt(session, projectRoot) {
+  return `프로젝트 루트: ${projectRoot || '(미지정)'}
+
+세션 제목: ${session.title}
+세션 설명: ${session.description}
+
+태스크 목록:
+${session.tasks.map(t => `- ${t.id}: ${t.title}\n  파일: ${t.files.join(', ')}\n  내용: ${t.description}`).join('\n')}
+
+위 세션을 구현하기 위한 프로젝트 구조, 파일 인터페이스, 타입 정의, 공통 유틸리티를 설계해주세요.
+JSON 형식: {"structure": {...}, "interfaces": {...}, "conventions": [...]}`;
+}
+
+function buildOrchestratorPrompt(session, architectOutput) {
+  return `아키텍처 설계도:
+${JSON.stringify(architectOutput, null, 2).slice(0, 1500)}
+
+세션 태스크:
+${session.tasks.map(t => `- ID: ${t.id}, 제목: ${t.title}, 파일: ${t.files.join(', ')}`).join('\n')}
+
+파일 충돌이 없도록 독립적인 워커 그룹으로 태스크를 분배해주세요.
+JSON 배열: [{"id": "...", "title": "...", "files": [...], "description": "..."}]`;
+}
+
+function buildWorkerPrompt(tasks, architectOutput, projectRoot) {
+  const taskList = tasks.map(t =>
+    `태스크: ${t.title || t.id}\n파일: ${(t.files||[]).join(', ')}\n내용: ${t.description || ''}`
+  ).join('\n\n');
+
+  const archCtx = architectOutput ?
+    `\n\n아키텍처 가이드:\n${JSON.stringify(architectOutput?.conventions || [], null, 2).slice(0, 800)}` : '';
+
+  return `${archCtx}
+
+구현할 태스크:
+${taskList}
+
+위 태스크를 완전히 구현한 코드를 제공하세요.
+JSON 형식: {"files": [{"path": "파일경로", "content": "전체 파일 내용"}]}`;
+}
+
+function buildDesignerPrompt(files) {
+  const preview = files.slice(0, 5).map(f =>
+    `=== ${f.path} ===\n${(f.content || '').slice(0, 500)}`
+  ).join('\n\n');
+
+  return `다음 UI 코드를 검토하고 디자인 개선을 제안하세요:\n\n${preview}\n\nJSON: {"suggestions": [{"file": "...", "issue": "...", "fix": "..."}]}`;
+}
+
+function buildReviewerPrompt(files) {
+  const preview = files.slice(0, 10).map(f =>
+    `=== ${f.path} ===\n${(f.content || '').slice(0, 600)}`
+  ).join('\n\n');
+
+  return `다음 코드를 보안 및 품질 측면에서 검토하세요:\n\n${preview}\n\nJSON: {"score": 0-100, "issues": [{"severity": "high|medium|low", "file": "...", "message": "..."}]}`;
+}
+
+/* ── HELPERS ─────────────────────────────────────── */
+function parseJsonSafe(text) {
+  try {
+    // JSON 블록 추출 시도
+    const match = String(text).match(/```json\n?([\s\S]*?)\n?```/) ||
+                  String(text).match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
+    const jsonStr = match ? match[1] || match[0] : text;
+    return JSON.parse(jsonStr.trim());
+  } catch {
+    return { raw: text };
+  }
+}
+
+/* ── CLI ─────────────────────────────────────────── */
 if (require.main === module) {
   const args = process.argv.slice(2);
-  const planIdx = args.indexOf('--plan');
-  const sessIdx = args.indexOf('--session');
+  const get = (flag) => { const i = args.indexOf(flag); return i >= 0 ? args[i + 1] : null; };
 
-  const planPath = planIdx >= 0 ? args[planIdx + 1] : './plan.md';
-  const session  = sessIdx >= 0 ? parseInt(args[sessIdx + 1]) : 1;
+  const planPath     = get('--plan') || './plan.md';
+  const sessionNum   = parseInt(get('--session') || '1');
+  const projectRoot  = get('--project') || process.cwd();
 
-  run(planPath, session).catch(err => {
-    console.error('❌ 오케스트레이터 오류:', err.message);
-    process.exit(1);
-  });
+  run({ planPath, sessionNumber: sessionNum, projectRoot, broadcast: null })
+    .then(r => {
+      console.log(`\n✅ 완료! 총 비용: $${r.cost.totalUSD.toFixed(4)}`);
+      process.exit(0);
+    })
+    .catch(err => {
+      console.error(`\n❌ 실패: ${err.message}`);
+      process.exit(1);
+    });
 }
 
 module.exports = { run };
