@@ -1,0 +1,14 @@
+{
+  "projects": [
+    {
+      "id": "famiy-achive",
+      "label": "Family Archive",
+      "root": "/root/famiy-achive"
+    },
+    {
+      "id": "project-b",
+      "label": "Project B",
+      "root": "/root/project-b"
+    }
+  ]
+}

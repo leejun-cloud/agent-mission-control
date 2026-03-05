@@ -1,0 +1,26 @@
+{
+  "name": "agent-mission-control",
+  "version": "3.0.0",
+  "description": "🛰 자율형 AI 오케스트라 플랫폼 — plan.md 하나로 AI 에이전트 군단이 자율 개발·검증·배포",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "pm2": "pm2 start server.js --name mission-control --watch",
+    "orchestrate": "node orchestrator/index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "ws": "^8.16.0",
+    "jsonwebtoken": "^9.0.2",
+    "dotenv": "^16.4.5"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/leejun-cloud/agent-mission-control.git"
+  },
+  "license": "MIT"
+}

@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🛰 Agent Mission Control</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #080810; --surface: #0e0e1a; --surface2: #141428;
+    --border: rgba(99,102,241,0.15); --accent: #6366f1;
+    --accent2: #06b6d4; --success: #10b981; --error: #ef4444;
+    --warn: #f59e0b; --text: #e2e8f0; --muted: #64748b;
+    --font: 'JetBrains Mono', 'Fira Code', monospace;
+  }
+  body { background: var(--bg); color: var(--text); font-family: var(--font); min-height: 100vh; }
+
+  /* ── LOGIN ── */
+  #login-screen {
+    display: flex; align-items: center; justify-content: center;
+    min-height: 100vh; background: var(--bg);
+  }
+  .login-card {
+    width: 360px; padding: 40px; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 20px;
+    box-shadow: 0 0 60px rgba(99,102,241,0.1);
+  }
+  .login-logo { text-align: center; font-size: 32px; margin-bottom: 8px; }
+  .login-title { text-align: center; font-size: 18px; font-weight: 800; color: var(--text); margin-bottom: 4px; }
+  .login-sub { text-align: center; font-size: 11px; color: var(--muted); margin-bottom: 28px; letter-spacing: 2px; text-transform: uppercase; }
+  .login-input {
+    width: 100%; padding: 14px 16px; background: var(--bg);
+    border: 1px solid var(--border); border-radius: 10px;
+    color: var(--text); font-family: var(--font); font-size: 14px;
+    outline: none; margin-bottom: 12px; transition: border-color 0.2s;
+  }
+  .login-input:focus { border-color: var(--accent); }
+  .login-btn {
+    width: 100%; padding: 14px; background: var(--accent);
+    border: none; border-radius: 10px; color: white;
+    font-family: var(--font); font-size: 14px; font-weight: 800;
+    cursor: pointer; letter-spacing: 1px; transition: all 0.2s;
+  }
+  .login-btn:hover { background: #4f46e5; transform: translateY(-1px); }
+  .login-error { color: var(--error); font-size: 12px; text-align: center; margin-top: 10px; min-height: 16px; }
+
+  /* ── MAIN DASHBOARD ── */
+  #dashboard { display: none; flex-direction: column; min-height: 100vh; }
+
+  /* Header */
+  .header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 24px; background: var(--surface);
+    border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100;
+    gap: 12px; flex-wrap: wrap;
+  }
+  .header-left { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+  .pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--success); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(0.8)} }
+  .header-title { font-size: 14px; font-weight: 900; letter-spacing: 2px; color: white; }
+  .header-sub { font-size: 9px; color: var(--muted); letter-spacing: 3px; text-transform: uppercase; }
+  .header-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .server-time { font-size: 11px; color: var(--muted); }
+  .logout-btn {
+    padding: 6px 14px; background: transparent; border: 1px solid var(--border);
+    border-radius: 8px; color: var(--muted); font-family: var(--font);
+    font-size: 11px; cursor: pointer; transition: all 0.2s;
+  }
+  .logout-btn:hover { border-color: var(--error); color: var(--error); }
+
+  /* Project selector */
+  .project-select {
+    padding: 6px 10px; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; color: var(--text); font-family: var(--font); font-size: 11px;
+    cursor: pointer; outline: none; max-width: 180px; transition: border-color 0.2s;
+  }
+  .project-select:focus { border-color: var(--accent); }
+  .project-label {
+    font-size: 9px; color: var(--muted); letter-spacing: 2px; text-transform: uppercase;
+    margin-right: 4px;
+  }
+
+  /* Main grid */
+  .main { display: grid; grid-template-columns: 320px 1fr; gap: 0; flex: 1; }
+
+  /* Left panel */
+  .left-panel { background: var(--surface); border-right: 1px solid var(--border); padding: 20px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; max-height: calc(100vh - 57px); }
+
+  /* Status cards */
+  .card { background: var(--surface2); border: 1px solid var(--border); border-radius: 14px; padding: 16px; }
+  .card-title { font-size: 9px; font-weight: 900; letter-spacing: 3px; text-transform: uppercase; color: var(--muted); margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
+  .card-title span { width: 3px; height: 12px; border-radius: 2px; background: var(--accent); display: inline-block; }
+
+  /* Build status */
+  .build-status { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .build-badge {
+    padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 800;
+    letter-spacing: 1px; text-transform: uppercase;
+  }
+  .badge-success { background: rgba(16,185,129,0.15); color: var(--success); border: 1px solid rgba(16,185,129,0.3); }
+  .badge-failed  { background: rgba(239,68,68,0.15); color: var(--error); border: 1px solid rgba(239,68,68,0.3); }
+  .badge-pending { background: rgba(100,116,139,0.15); color: var(--muted); border: 1px solid rgba(100,116,139,0.3); }
+  .badge-running { background: rgba(99,102,241,0.15); color: var(--accent); border: 1px solid rgba(99,102,241,0.3); animation: pulse 1.5s infinite; }
+
+  /* Progress bar */
+  .progress-label { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 11px; }
+  .progress-bar { height: 6px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2)); border-radius: 3px; transition: width 0.8s ease; }
+
+  /* Agent status */
+  .agent-list { display: flex; flex-direction: column; gap: 5px; }
+  .agent-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 10px; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 8px; transition: border-color 0.2s;
+  }
+  .agent-row:hover { border-color: rgba(99,102,241,0.3); }
+  .agent-indicator { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .agent-indicator.online { background: var(--success); box-shadow: 0 0 6px rgba(16,185,129,0.6); animation: pulse 2s infinite; }
+  .agent-indicator.stopped { background: var(--muted); }
+  .agent-indicator.errored { background: var(--error); box-shadow: 0 0 6px rgba(239,68,68,0.4); }
+  .agent-indicator.launching { background: var(--warn); animation: pulse 0.8s infinite; }
+  .agent-name { flex: 1; font-size: 11px; font-weight: 700; color: var(--text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .agent-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; flex-shrink: 0; }
+  .agent-stat { font-size: 9px; color: var(--muted); }
+  .agent-stat.mem { color: var(--accent2); }
+  .agent-stat.cpu { color: var(--warn); }
+
+  /* Mission buttons */
+  .mission-list { display: flex; flex-direction: column; gap: 6px; }
+  .mission-btn {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 14px; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 10px; cursor: pointer; transition: all 0.2s; color: var(--text);
+    font-family: var(--font); font-size: 12px; text-align: left;
+  }
+  .mission-btn:hover { border-color: var(--accent); background: rgba(99,102,241,0.05); transform: translateX(2px); }
+  .mission-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+  .mission-btn .run-icon { font-size: 16px; opacity: 0.6; flex-shrink: 0; }
+  .mission-btn.running { border-color: var(--accent); background: rgba(99,102,241,0.1); }
+
+  /* Log file list */
+  .log-list { display: flex; flex-direction: column; gap: 4px; }
+  .log-item {
+    padding: 6px 10px; background: var(--bg); border: 1px solid transparent;
+    border-radius: 8px; font-size: 11px; color: var(--muted); cursor: pointer;
+    transition: all 0.2s;
+  }
+  .log-item:hover { border-color: var(--border); color: var(--text); }
+
+  /* Right panel — Terminal */
+  .right-panel { display: flex; flex-direction: column; background: var(--bg); }
+
+  .terminal-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 20px; background: var(--surface); border-bottom: 1px solid var(--border);
+  }
+  .terminal-title { font-size: 11px; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; }
+  .terminal-controls { display: flex; gap: 6px; }
+  .t-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .clear-btn {
+    padding: 4px 12px; background: transparent; border: 1px solid var(--border);
+    border-radius: 6px; color: var(--muted); font-family: var(--font);
+    font-size: 10px; cursor: pointer; transition: all 0.2s;
+  }
+  .clear-btn:hover { border-color: var(--muted); color: var(--text); }
+
+  .terminal-body {
+    flex: 1; padding: 20px; overflow-y: auto; font-size: 13px;
+    line-height: 1.7; max-height: calc(100vh - 130px);
+  }
+  .terminal-body::-webkit-scrollbar { width: 4px; }
+  .terminal-body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+  .log-line { display: flex; gap: 12px; margin-bottom: 2px; }
+  .log-time { color: var(--muted); flex-shrink: 0; font-size: 11px; padding-top: 2px; }
+  .log-text { word-break: break-all; }
+  .log-text.success { color: var(--success); }
+  .log-text.error { color: var(--error); }
+  .log-text.warn { color: var(--warn); }
+  .log-text.start { color: var(--accent); font-weight: bold; }
+  .log-text.system { color: var(--accent2); }
+
+  /* Custom command */
+  .cmd-area {
+    padding: 16px 20px; background: var(--surface); border-top: 1px solid var(--border);
+  }
+  .cmd-row { display: flex; gap: 10px; }
+  .cmd-select {
+    flex: 1; padding: 12px 14px; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 10px; color: var(--text); font-family: var(--font); font-size: 13px;
+    outline: none; cursor: pointer;
+  }
+  .cmd-select:focus { border-color: var(--accent); }
+  .cmd-run-btn {
+    padding: 12px 24px; background: var(--accent); border: none; border-radius: 10px;
+    color: white; font-family: var(--font); font-size: 13px; font-weight: 800;
+    cursor: pointer; transition: all 0.2s; letter-spacing: 1px; white-space: nowrap;
+  }
+  .cmd-run-btn:hover { background: #4f46e5; transform: translateY(-1px); }
+  .cmd-run-btn:disabled { background: var(--surface2); color: var(--muted); transform: none; cursor: not-allowed; }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .main { grid-template-columns: 1fr; }
+    .right-panel { min-height: 50vh; }
+  }
+
+  /* Connection status */
+  .ws-status { font-size: 9px; letter-spacing: 2px; color: var(--muted); }
+  .ws-status.connected { color: var(--success); }
+
+  /* Project info bar */
+  .project-info {
+    font-size: 10px; color: var(--muted); padding: 4px 8px;
+    background: rgba(99,102,241,0.05); border: 1px solid var(--border);
+    border-radius: 6px; max-width: 200px; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap;
+  }
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">🛰</div>
+    <div class="login-title">MISSION CONTROL</div>
+    <div class="login-sub">AI Agent Command Center</div>
+    <input class="login-input" type="password" id="pw-input" placeholder="비밀번호 입력..." autocomplete="current-password">
+    <button class="login-btn" onclick="doLogin()">▶ ACCESS SYSTEM</button>
+    <div class="login-error" id="login-error"></div>
+  </div>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dashboard">
+
+  <!-- Header -->
+  <header class="header">
+    <div class="header-left">
+      <div class="pulse"></div>
+      <div>
+        <div class="header-title">🛰 AGENT MISSION CONTROL v2.1</div>
+        <div class="header-sub">AI Swarm Command Center</div>
+      </div>
+    </div>
+
+    <!-- Project selector (center) -->
+    <div style="display:flex;align-items:center;gap:6px;flex:1;justify-content:center;max-width:280px;">
+      <span class="project-label">PROJECT</span>
+      <select class="project-select" id="project-select" onchange="switchProject(this.value)">
+        <option value="">로딩 중...</option>
+      </select>
+    </div>
+
+    <div class="header-right">
+      <span class="ws-status" id="ws-status">CONNECTING...</span>
+      <span class="server-time" id="server-time"></span>
+      <button class="logout-btn" onclick="doLogout()">LOGOUT</button>
+    </div>
+  </header>
+
+  <div class="main">
+
+    <!-- LEFT PANEL -->
+    <div class="left-panel">
+
+      <!-- Build Status -->
+      <div class="card">
+        <div class="card-title"><span></span>BUILD STATUS</div>
+        <div class="build-status">
+          <div class="build-badge badge-pending" id="build-badge">— PENDING</div>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:6px" id="build-time"></div>
+        <div style="font-size:11px;color:var(--muted)" id="build-violations"></div>
+      </div>
+
+      <!-- Todo Progress -->
+      <div class="card">
+        <div class="card-title"><span></span>TODO PROGRESS</div>
+        <div class="progress-label">
+          <span id="todo-label" style="font-size:12px">로딩 중...</span>
+          <span id="todo-pct" style="font-size:16px;font-weight:900;color:white">—%</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" id="progress-fill" style="width:0%"></div>
+        </div>
+      </div>
+
+      <!-- Agent Status -->
+      <div class="card">
+        <div class="card-title">
+          <span></span>AGENT STATUS
+          <span style="margin-left:auto;font-size:9px;color:var(--muted);letter-spacing:0" id="agent-count"></span>
+        </div>
+        <div class="agent-list" id="agent-list">
+          <div style="font-size:11px;color:var(--muted)">로딩 중...</div>
+        </div>
+      </div>
+
+      <!-- Missions -->
+      <div class="card">
+        <div class="card-title"><span></span>MISSIONS</div>
+        <div class="mission-list" id="mission-list">
+          <div style="font-size:11px;color:var(--muted)">로딩 중...</div>
+        </div>
+      </div>
+
+      <!-- Log files -->
+      <div class="card">
+        <div class="card-title"><span></span>LOG FILES</div>
+        <div class="log-list" id="log-list">
+          <div style="font-size:11px;color:var(--muted)">로딩 중...</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT PANEL — TERMINAL -->
+    <div class="right-panel">
+      <div class="terminal-header">
+        <div>
+          <div style="display:flex;gap:6px" class="terminal-controls">
+            <div class="t-dot" style="background:#ff5f57"></div>
+            <div class="t-dot" style="background:#febc2e"></div>
+            <div class="t-dot" style="background:#28c840"></div>
+          </div>
+        </div>
+        <span class="terminal-title">RECON_FEED_LIVE — Mission Output</span>
+        <button class="clear-btn" onclick="clearTerminal()">CLEAR</button>
+      </div>
+
+      <div class="terminal-body" id="terminal">
+        <div class="log-line">
+          <span class="log-time">--:--:--</span>
+          <span class="log-text system">// Waiting for signal...</span>
+        </div>
+      </div>
+
+      <div class="cmd-area">
+        <div class="cmd-row">
+          <select class="cmd-select" id="cmd-select">
+            <option value="">미션 선택...</option>
+          </select>
+          <button class="cmd-run-btn" id="run-btn" onclick="runSelectedMission()">▶ EXECUTE</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  let token = localStorage.getItem('mc_token');
+  let ws    = null;
+  let runningMission = null;
+
+  // ── 초기화 ──────────────────────────────────────────
+  window.addEventListener('load', () => {
+    if (token) {
+      showDashboard();
+    }
+    document.getElementById('pw-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') doLogin();
+    });
+    updateClock();
+    setInterval(updateClock, 1000);
+  });
+
+  function updateClock() {
+    document.getElementById('server-time').textContent = new Date().toLocaleString('ko-KR');
+  }
+
+  // ── 로그인 ──────────────────────────────────────────
+  async function doLogin() {
+    const pw  = document.getElementById('pw-input').value;
+    const err = document.getElementById('login-error');
+    err.textContent = '';
+    try {
+      const res  = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: pw }),
+      });
+      const data = await res.json();
+      if (!res.ok) { err.textContent = data.error; return; }
+      token = data.token;
+      localStorage.setItem('mc_token', token);
+      showDashboard();
+    } catch {
+      err.textContent = '서버 연결 실패';
+    }
+  }
+
+  function doLogout() {
+    localStorage.removeItem('mc_token');
+    token = null;
+    if (ws) ws.close();
+    document.getElementById('dashboard').style.display = 'none';
+    document.getElementById('login-screen').style.display = 'flex';
+    document.getElementById('pw-input').value = '';
+  }
+
+  // ── 대시보드 표시 ────────────────────────────────────
+  async function showDashboard() {
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('dashboard').style.display = 'flex';
+    await Promise.all([loadStatus(), loadProjects(), loadAgents()]);
+    connectWS();
+    setInterval(loadStatus, 15000);
+    setInterval(loadAgents, 10000); // 에이전트 상태 10초마다 갱신
+  }
+
+  // ── 프로젝트 목록 로드 ────────────────────────────────
+  async function loadProjects() {
+    try {
+      const res  = await fetch('/api/projects', { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) return;
+      const data = await res.json();
+      const sel  = document.getElementById('project-select');
+      sel.innerHTML = '';
+      data.projects.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = p.label;
+        if (p.id === data.current?.id) opt.selected = true;
+        sel.appendChild(opt);
+      });
+    } catch {}
+  }
+
+  // ── 프로젝트 전환 ────────────────────────────────────
+  async function switchProject(projectId) {
+    if (!projectId) return;
+    try {
+      const res = await fetch('/api/projects/switch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ projectId }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        addLog(`📁 프로젝트 전환: ${data.current.label} (${data.current.root})`, 'system');
+        await loadStatus();
+      }
+    } catch {}
+  }
+
+  // ── 에이전트 상태 로드 ────────────────────────────────
+  async function loadAgents() {
+    try {
+      const res  = await fetch('/api/agents', { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) return;
+      const data = await res.json();
+      updateAgentList(data.agents);
+    } catch {}
+  }
+
+  function updateAgentList(agents) {
+    const list = document.getElementById('agent-list');
+    const countEl = document.getElementById('agent-count');
+
+    if (!agents?.length) {
+      list.innerHTML = '<div style="font-size:11px;color:var(--muted)">실행 중인 에이전트 없음</div>';
+      countEl.textContent = '';
+      return;
+    }
+
+    const online = agents.filter(a => a.status === 'online').length;
+    countEl.textContent = `${online}/${agents.length} ONLINE`;
+
+    list.innerHTML = '';
+    agents.forEach(a => {
+      const row = document.createElement('div');
+      row.className = 'agent-row';
+
+      const statusClass = a.status === 'online' ? 'online'
+        : a.status === 'launching' ? 'launching'
+        : a.status === 'errored'   ? 'errored'
+        : 'stopped';
+
+      const uptime = a.uptime ? formatUptime(Date.now() - a.uptime) : '—';
+      const memText = a.memory > 0 ? `${a.memory}MB` : '—';
+      const cpuText = a.cpu > 0 ? `${a.cpu}%` : '—';
+
+      row.innerHTML = `
+        <div class="agent-indicator ${statusClass}"></div>
+        <div class="agent-name" title="${a.name}">${a.name}</div>
+        <div class="agent-meta">
+          <span class="agent-stat mem">${memText}</span>
+          <span class="agent-stat">${uptime}</span>
+        </div>
+      `;
+      list.appendChild(row);
+    });
+  }
+
+  function formatUptime(ms) {
+    if (ms < 0) return '—';
+    const s = Math.floor(ms / 1000);
+    if (s < 60) return `${s}s`;
+    const m = Math.floor(s / 60);
+    if (m < 60) return `${m}m`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}h`;
+    return `${Math.floor(h / 24)}d`;
+  }
+
+  // ── 상태 로드 ────────────────────────────────────────
+  async function loadStatus() {
+    try {
+      const res  = await fetch('/api/status', { headers: { Authorization: `Bearer ${token}` } });
+      if (res.status === 401) { doLogout(); return; }
+      const data = await res.json();
+      updateBuildStatus(data.build);
+      updateTodo(data.todo);
+      updateMissions(data.missions);
+      updateLogList(data.logs);
+    } catch {}
+  }
+
+  function updateBuildStatus(build) {
+    const badge = document.getElementById('build-badge');
+    const time  = document.getElementById('build-time');
+    const viol  = document.getElementById('build-violations');
+    if (!build) return;
+    const s = build.status;
+    badge.textContent = s === 'success' ? '✅ SUCCESS' : s === 'failed' ? '❌ FAILED' : '🛑 BLOCKED';
+    badge.className = `build-badge ${s === 'success' ? 'badge-success' : s === 'failed' ? 'badge-failed' : 'badge-failed'}`;
+    if (build.timestamp) time.textContent = new Date(build.timestamp).toLocaleString('ko-KR');
+    if (build.violations?.length) {
+      viol.textContent = `위반 ${build.violations.length}건`;
+      viol.style.color = 'var(--error)';
+    } else {
+      viol.textContent = '위반 없음';
+      viol.style.color = 'var(--success)';
+    }
+  }
+
+  function updateTodo(todo) {
+    if (!todo) return;
+    document.getElementById('todo-label').textContent = `완료 ${todo.done} / 전체 ${todo.total}`;
+    document.getElementById('todo-pct').textContent = `${todo.progress}%`;
+    document.getElementById('progress-fill').style.width = `${todo.progress}%`;
+  }
+
+  function updateMissions(missions) {
+    if (!missions?.length) return;
+    const list   = document.getElementById('mission-list');
+    const select = document.getElementById('cmd-select');
+    list.innerHTML = '';
+    select.innerHTML = '<option value="">미션 선택...</option>';
+
+    missions.forEach(m => {
+      const btn = document.createElement('button');
+      btn.className = 'mission-btn';
+      btn.id = `mission-btn-${m.id}`;
+      btn.innerHTML = `<span>${m.label}</span><span class="run-icon">▶</span>`;
+      btn.onclick = () => runMission(m.id, m.label);
+      list.appendChild(btn);
+
+      const opt = document.createElement('option');
+      opt.value = m.id;
+      opt.textContent = m.label;
+      select.appendChild(opt);
+    });
+  }
+
+  function updateLogList(logs) {
+    const list = document.getElementById('log-list');
+    if (!logs?.length) { list.innerHTML = '<div style="font-size:11px;color:var(--muted)">로그 없음</div>'; return; }
+    list.innerHTML = '';
+    logs.forEach(f => {
+      const item = document.createElement('div');
+      item.className = 'log-item';
+      item.textContent = `📄 ${f}`;
+      item.onclick = () => loadLogFile(f);
+      list.appendChild(item);
+    });
+  }
+
+  async function loadLogFile(filename) {
+    try {
+      const res  = await fetch(`/api/logs/${filename}`, { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      clearTerminal();
+      addLog(`📄 ${filename} 내용:`, 'system');
+      data.content.split('\n').slice(-100).forEach(line => addLog(line, 'log'));
+    } catch {}
+  }
+
+  // ── 미션 실행 ────────────────────────────────────────
+  async function runMission(missionId, label) {
+    if (runningMission) {
+      addLog(`⚠️ 다른 미션 실행 중: ${runningMission}`, 'warn');
+      return;
+    }
+    runningMission = missionId;
+
+    const btn = document.getElementById(`mission-btn-${missionId}`);
+    if (btn) { btn.classList.add('running'); btn.disabled = true; }
+    document.getElementById('run-btn').disabled = true;
+
+    addLog(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`, 'system');
+    addLog(`▶ 미션 시작: ${label || missionId}`, 'start');
+
+    try {
+      await fetch('/api/mission/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ missionId }),
+      });
+    } catch {
+      addLog('❌ 미션 시작 실패', 'error');
+      resetMissionUI(missionId);
+    }
+
+    setTimeout(() => {
+      if (runningMission === missionId) resetMissionUI(missionId);
+    }, 120000);
+  }
+
+  function runSelectedMission() {
+    const sel = document.getElementById('cmd-select');
+    if (!sel.value) return;
+    const label = sel.options[sel.selectedIndex].text;
+    runMission(sel.value, label);
+  }
+
+  function resetMissionUI(missionId) {
+    runningMission = null;
+    const btn = document.getElementById(`mission-btn-${missionId}`);
+    if (btn) { btn.classList.remove('running'); btn.disabled = false; }
+    document.getElementById('run-btn').disabled = false;
+    loadStatus();
+    loadAgents();
+  }
+
+  // ── WebSocket ────────────────────────────────────────
+  function connectWS() {
+    const wsUrl = `ws://${location.host}/ws?token=${token}`;
+    ws = new WebSocket(wsUrl);
+    const statusEl = document.getElementById('ws-status');
+
+    ws.onopen = () => {
+      statusEl.textContent = 'LIVE';
+      statusEl.className = 'ws-status connected';
+    };
+    ws.onclose = () => {
+      statusEl.textContent = 'DISCONNECTED';
+      statusEl.className = 'ws-status';
+      setTimeout(connectWS, 3000);
+    };
+    ws.onerror = () => { statusEl.textContent = 'ERROR'; };
+    ws.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        const type = msg.type || 'log';
+        const lines = String(msg.data || '').split('\n');
+        lines.forEach(line => { if (line.trim()) addLog(line, type); });
+
+        if ((type === 'success' || type === 'error') && msg.missionId === runningMission) {
+          resetMissionUI(msg.missionId);
+        }
+      } catch {
+        addLog(e.data, 'log');
+      }
+    };
+  }
+
+  // ── 터미널 출력 ──────────────────────────────────────
+  function addLog(text, type = 'log') {
+    const terminal = document.getElementById('terminal');
+    const line = document.createElement('div');
+    line.className = 'log-line';
+    const now = new Date().toLocaleTimeString('ko-KR', { hour12: false });
+    let cls = 'log-text';
+    if (type === 'success' || String(text).includes('✅')) cls += ' success';
+    else if (type === 'error' || String(text).includes('❌')) cls += ' error';
+    else if (type === 'warn'  || String(text).includes('⚠️')) cls += ' warn';
+    else if (type === 'start' || type === 'system') cls += ' system';
+    line.innerHTML = `<span class="log-time">${now}</span><span class="${cls}">${escHtml(text)}</span>`;
+    terminal.appendChild(line);
+    terminal.scrollTop = terminal.scrollHeight;
+
+    while (terminal.children.length > 500) terminal.removeChild(terminal.firstChild);
+  }
+
+  function clearTerminal() {
+    document.getElementById('terminal').innerHTML = '';
+    addLog('// Terminal cleared', 'system');
+  }
+
+  function escHtml(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+</script>
+</body>
+</html>
