@@ -3,220 +3,412 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>🛰 Agent Mission Control</title>
+<title>🛰 Agent Mission Control v3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;700;800&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  :root {
-    --bg: #080810; --surface: #0e0e1a; --surface2: #141428;
-    --border: rgba(99,102,241,0.15); --accent: #6366f1;
-    --accent2: #06b6d4; --success: #10b981; --error: #ef4444;
-    --warn: #f59e0b; --text: #e2e8f0; --muted: #64748b;
-    --font: 'JetBrains Mono', 'Fira Code', monospace;
-  }
-  body { background: var(--bg); color: var(--text); font-family: var(--font); min-height: 100vh; }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-  /* ── LOGIN ── */
-  #login-screen {
-    display: flex; align-items: center; justify-content: center;
-    min-height: 100vh; background: var(--bg);
-  }
-  .login-card {
-    width: 360px; padding: 40px; background: var(--surface);
-    border: 1px solid var(--border); border-radius: 20px;
-    box-shadow: 0 0 60px rgba(99,102,241,0.1);
-  }
-  .login-logo { text-align: center; font-size: 32px; margin-bottom: 8px; }
-  .login-title { text-align: center; font-size: 18px; font-weight: 800; color: var(--text); margin-bottom: 4px; }
-  .login-sub { text-align: center; font-size: 11px; color: var(--muted); margin-bottom: 28px; letter-spacing: 2px; text-transform: uppercase; }
-  .login-input {
-    width: 100%; padding: 14px 16px; background: var(--bg);
-    border: 1px solid var(--border); border-radius: 10px;
-    color: var(--text); font-family: var(--font); font-size: 14px;
-    outline: none; margin-bottom: 12px; transition: border-color 0.2s;
-  }
-  .login-input:focus { border-color: var(--accent); }
-  .login-btn {
-    width: 100%; padding: 14px; background: var(--accent);
-    border: none; border-radius: 10px; color: white;
-    font-family: var(--font); font-size: 14px; font-weight: 800;
-    cursor: pointer; letter-spacing: 1px; transition: all 0.2s;
-  }
-  .login-btn:hover { background: #4f46e5; transform: translateY(-1px); }
-  .login-error { color: var(--error); font-size: 12px; text-align: center; margin-top: 10px; min-height: 16px; }
+:root {
+  --bg: #05050f;
+  --surface: #0a0a18;
+  --surface2: #0f0f22;
+  --surface3: #13132a;
+  --border: rgba(99,102,241,0.12);
+  --border2: rgba(99,102,241,0.25);
+  --accent: #6366f1;
+  --accent-glow: rgba(99,102,241,0.35);
+  --cyan: #06b6d4;
+  --cyan-glow: rgba(6,182,212,0.25);
+  --success: #10b981;
+  --success-glow: rgba(16,185,129,0.25);
+  --error: #ef4444;
+  --error-glow: rgba(239,68,68,0.25);
+  --warn: #f59e0b;
+  --warn-glow: rgba(245,158,11,0.2);
+  --purple: #a855f7;
+  --pink: #ec4899;
+  --text: #e2e8f0;
+  --muted: #4a5568;
+  --muted2: #718096;
+  --mono: 'JetBrains Mono', monospace;
+  --sans: 'Inter', sans-serif;
+}
 
-  /* ── MAIN DASHBOARD ── */
-  #dashboard { display: none; flex-direction: column; min-height: 100vh; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  min-height: 100vh;
+  overflow: hidden;
+}
 
-  /* Header */
-  .header {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 12px 24px; background: var(--surface);
-    border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100;
-    gap: 12px; flex-wrap: wrap;
-  }
-  .header-left { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
-  .pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--success); animation: pulse 2s infinite; }
-  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(0.8)} }
-  .header-title { font-size: 14px; font-weight: 900; letter-spacing: 2px; color: white; }
-  .header-sub { font-size: 9px; color: var(--muted); letter-spacing: 3px; text-transform: uppercase; }
-  .header-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  .server-time { font-size: 11px; color: var(--muted); }
-  .logout-btn {
-    padding: 6px 14px; background: transparent; border: 1px solid var(--border);
-    border-radius: 8px; color: var(--muted); font-family: var(--font);
-    font-size: 11px; cursor: pointer; transition: all 0.2s;
-  }
-  .logout-btn:hover { border-color: var(--error); color: var(--error); }
+/* ── ANIMATED BACKGROUND ── */
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: 0;
+  background:
+    radial-gradient(ellipse 80% 50% at 10% 20%, rgba(99,102,241,0.04) 0%, transparent 50%),
+    radial-gradient(ellipse 60% 40% at 90% 80%, rgba(6,182,212,0.03) 0%, transparent 50%);
+  pointer-events: none;
+}
 
-  /* Project selector */
-  .project-select {
-    padding: 6px 10px; background: var(--surface2); border: 1px solid var(--border);
-    border-radius: 8px; color: var(--text); font-family: var(--font); font-size: 11px;
-    cursor: pointer; outline: none; max-width: 180px; transition: border-color 0.2s;
-  }
-  .project-select:focus { border-color: var(--accent); }
-  .project-label {
-    font-size: 9px; color: var(--muted); letter-spacing: 2px; text-transform: uppercase;
-    margin-right: 4px;
-  }
+/* ── LOGIN ── */
+#login-screen {
+  position: fixed; inset: 0; z-index: 1000;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg);
+}
 
-  /* Main grid */
-  .main { display: grid; grid-template-columns: 320px 1fr; gap: 0; flex: 1; }
+.login-card {
+  width: 380px; padding: 48px 40px;
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: 24px;
+  box-shadow: 0 0 80px rgba(99,102,241,0.12), 0 0 200px rgba(6,182,212,0.05);
+  animation: fadeUp 0.4s ease;
+}
 
-  /* Left panel */
-  .left-panel { background: var(--surface); border-right: 1px solid var(--border); padding: 20px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; max-height: calc(100vh - 57px); }
+@keyframes fadeUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
 
-  /* Status cards */
-  .card { background: var(--surface2); border: 1px solid var(--border); border-radius: 14px; padding: 16px; }
-  .card-title { font-size: 9px; font-weight: 900; letter-spacing: 3px; text-transform: uppercase; color: var(--muted); margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
-  .card-title span { width: 3px; height: 12px; border-radius: 2px; background: var(--accent); display: inline-block; }
+.login-icon { text-align: center; font-size: 40px; margin-bottom: 6px; }
+.login-title { text-align: center; font-size: 20px; font-weight: 900; letter-spacing: 3px; color: white; margin-bottom: 4px; }
+.login-sub { text-align: center; font-size: 10px; color: var(--muted2); letter-spacing: 4px; text-transform: uppercase; margin-bottom: 32px; }
 
-  /* Build status */
-  .build-status { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
-  .build-badge {
-    padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 800;
-    letter-spacing: 1px; text-transform: uppercase;
-  }
-  .badge-success { background: rgba(16,185,129,0.15); color: var(--success); border: 1px solid rgba(16,185,129,0.3); }
-  .badge-failed  { background: rgba(239,68,68,0.15); color: var(--error); border: 1px solid rgba(239,68,68,0.3); }
-  .badge-pending { background: rgba(100,116,139,0.15); color: var(--muted); border: 1px solid rgba(100,116,139,0.3); }
-  .badge-running { background: rgba(99,102,241,0.15); color: var(--accent); border: 1px solid rgba(99,102,241,0.3); animation: pulse 1.5s infinite; }
+.login-input {
+  width: 100%; padding: 14px 18px;
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 12px; color: var(--text);
+  font-family: var(--mono); font-size: 14px;
+  outline: none; margin-bottom: 12px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.login-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
 
-  /* Progress bar */
-  .progress-label { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 11px; }
-  .progress-bar { height: 6px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden; }
-  .progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2)); border-radius: 3px; transition: width 0.8s ease; }
+.login-btn {
+  width: 100%; padding: 15px;
+  background: linear-gradient(135deg, var(--accent), #4f46e5);
+  border: none; border-radius: 12px; color: white;
+  font-family: var(--sans); font-size: 13px; font-weight: 800;
+  cursor: pointer; letter-spacing: 2px; text-transform: uppercase;
+  transition: all 0.2s;
+  box-shadow: 0 4px 20px rgba(99,102,241,0.3);
+}
+.login-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(99,102,241,0.4); }
+.login-err { text-align: center; font-size: 12px; color: var(--error); margin-top: 12px; min-height: 16px; font-family: var(--mono); }
 
-  /* Agent status */
-  .agent-list { display: flex; flex-direction: column; gap: 5px; }
-  .agent-row {
-    display: flex; align-items: center; gap: 8px;
-    padding: 8px 10px; background: var(--bg); border: 1px solid var(--border);
-    border-radius: 8px; transition: border-color 0.2s;
-  }
-  .agent-row:hover { border-color: rgba(99,102,241,0.3); }
-  .agent-indicator { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-  .agent-indicator.online { background: var(--success); box-shadow: 0 0 6px rgba(16,185,129,0.6); animation: pulse 2s infinite; }
-  .agent-indicator.stopped { background: var(--muted); }
-  .agent-indicator.errored { background: var(--error); box-shadow: 0 0 6px rgba(239,68,68,0.4); }
-  .agent-indicator.launching { background: var(--warn); animation: pulse 0.8s infinite; }
-  .agent-name { flex: 1; font-size: 11px; font-weight: 700; color: var(--text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .agent-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; flex-shrink: 0; }
-  .agent-stat { font-size: 9px; color: var(--muted); }
-  .agent-stat.mem { color: var(--accent2); }
-  .agent-stat.cpu { color: var(--warn); }
+/* ── MAIN LAYOUT ── */
+#app { display: none; flex-direction: column; height: 100vh; position: relative; z-index: 1; }
 
-  /* Mission buttons */
-  .mission-list { display: flex; flex-direction: column; gap: 6px; }
-  .mission-btn {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 10px 14px; background: var(--bg); border: 1px solid var(--border);
-    border-radius: 10px; cursor: pointer; transition: all 0.2s; color: var(--text);
-    font-family: var(--font); font-size: 12px; text-align: left;
-  }
-  .mission-btn:hover { border-color: var(--accent); background: rgba(99,102,241,0.05); transform: translateX(2px); }
-  .mission-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
-  .mission-btn .run-icon { font-size: 16px; opacity: 0.6; flex-shrink: 0; }
-  .mission-btn.running { border-color: var(--accent); background: rgba(99,102,241,0.1); }
+/* ── HEADER ── */
+.hdr {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding: 10px 20px;
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 100; flex-shrink: 0;
+}
+.hdr-brand { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.live-dot {
+  width: 8px; height: 8px; border-radius: 50%; background: var(--success);
+  box-shadow: 0 0 8px var(--success-glow);
+  animation: blink 2s infinite;
+}
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+.hdr-title { font-size: 13px; font-weight: 900; letter-spacing: 2.5px; color: white; font-family: var(--mono); }
+.hdr-version { font-size: 9px; color: var(--accent); letter-spacing: 2px; font-family: var(--mono); margin-top: 1px; }
 
-  /* Log file list */
-  .log-list { display: flex; flex-direction: column; gap: 4px; }
-  .log-item {
-    padding: 6px 10px; background: var(--bg); border: 1px solid transparent;
-    border-radius: 8px; font-size: 11px; color: var(--muted); cursor: pointer;
-    transition: all 0.2s;
-  }
-  .log-item:hover { border-color: var(--border); color: var(--text); }
+.hdr-center { display: flex; align-items: center; gap: 8px; flex: 1; justify-content: center; }
+.proj-label { font-size: 9px; color: var(--muted2); letter-spacing: 2px; text-transform: uppercase; }
+.proj-select {
+  padding: 6px 12px; background: var(--surface2);
+  border: 1px solid var(--border); border-radius: 8px;
+  color: var(--text); font-family: var(--mono); font-size: 11px;
+  outline: none; max-width: 200px; cursor: pointer;
+  transition: border-color 0.2s;
+}
+.proj-select:focus { border-color: var(--accent); }
 
-  /* Right panel — Terminal */
-  .right-panel { display: flex; flex-direction: column; background: var(--bg); }
+.hdr-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.ws-badge {
+  padding: 3px 10px; border-radius: 20px; font-size: 9px; font-weight: 800;
+  letter-spacing: 2px; font-family: var(--mono);
+  background: rgba(100,116,139,0.15); color: var(--muted2);
+  border: 1px solid var(--border);
+}
+.ws-badge.live { background: rgba(16,185,129,0.1); color: var(--success); border-color: rgba(16,185,129,0.3); }
+.hdr-time { font-size: 10px; color: var(--muted2); font-family: var(--mono); }
 
-  .terminal-header {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 12px 20px; background: var(--surface); border-bottom: 1px solid var(--border);
-  }
-  .terminal-title { font-size: 11px; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; }
-  .terminal-controls { display: flex; gap: 6px; }
-  .t-dot { width: 10px; height: 10px; border-radius: 50%; }
-  .clear-btn {
-    padding: 4px 12px; background: transparent; border: 1px solid var(--border);
-    border-radius: 6px; color: var(--muted); font-family: var(--font);
-    font-size: 10px; cursor: pointer; transition: all 0.2s;
-  }
-  .clear-btn:hover { border-color: var(--muted); color: var(--text); }
+.kill-btn {
+  padding: 6px 14px; background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3);
+  border-radius: 8px; color: var(--error); font-family: var(--mono);
+  font-size: 10px; font-weight: 800; cursor: pointer; letter-spacing: 1px;
+  transition: all 0.2s;
+}
+.kill-btn:hover { background: rgba(239,68,68,0.2); box-shadow: 0 0 12px var(--error-glow); transform: scale(1.02); }
 
-  .terminal-body {
-    flex: 1; padding: 20px; overflow-y: auto; font-size: 13px;
-    line-height: 1.7; max-height: calc(100vh - 130px);
-  }
-  .terminal-body::-webkit-scrollbar { width: 4px; }
-  .terminal-body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+.logout-btn {
+  padding: 6px 12px; background: transparent; border: 1px solid var(--border);
+  border-radius: 8px; color: var(--muted2); font-family: var(--mono);
+  font-size: 10px; cursor: pointer; transition: all 0.2s;
+}
+.logout-btn:hover { border-color: var(--error); color: var(--error); }
 
-  .log-line { display: flex; gap: 12px; margin-bottom: 2px; }
-  .log-time { color: var(--muted); flex-shrink: 0; font-size: 11px; padding-top: 2px; }
-  .log-text { word-break: break-all; }
-  .log-text.success { color: var(--success); }
-  .log-text.error { color: var(--error); }
-  .log-text.warn { color: var(--warn); }
-  .log-text.start { color: var(--accent); font-weight: bold; }
-  .log-text.system { color: var(--accent2); }
+/* ── MAIN GRID ── */
+.main-grid {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  flex: 1; overflow: hidden;
+}
 
-  /* Custom command */
-  .cmd-area {
-    padding: 16px 20px; background: var(--surface); border-top: 1px solid var(--border);
-  }
-  .cmd-row { display: flex; gap: 10px; }
-  .cmd-select {
-    flex: 1; padding: 12px 14px; background: var(--bg); border: 1px solid var(--border);
-    border-radius: 10px; color: var(--text); font-family: var(--font); font-size: 13px;
-    outline: none; cursor: pointer;
-  }
-  .cmd-select:focus { border-color: var(--accent); }
-  .cmd-run-btn {
-    padding: 12px 24px; background: var(--accent); border: none; border-radius: 10px;
-    color: white; font-family: var(--font); font-size: 13px; font-weight: 800;
-    cursor: pointer; transition: all 0.2s; letter-spacing: 1px; white-space: nowrap;
-  }
-  .cmd-run-btn:hover { background: #4f46e5; transform: translateY(-1px); }
-  .cmd-run-btn:disabled { background: var(--surface2); color: var(--muted); transform: none; cursor: not-allowed; }
+/* ── LEFT PANEL ── */
+.lpanel {
+  background: var(--surface); border-right: 1px solid var(--border);
+  overflow-y: auto; display: flex; flex-direction: column; gap: 14px;
+  padding: 16px 14px;
+}
+.lpanel::-webkit-scrollbar { width: 3px; }
+.lpanel::-webkit-scrollbar-thumb { background: rgba(99,102,241,0.2); border-radius: 2px; }
 
-  /* Responsive */
-  @media (max-width: 768px) {
-    .main { grid-template-columns: 1fr; }
-    .right-panel { min-height: 50vh; }
-  }
+/* ── CARD ── */
+.card {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 16px; padding: 14px;
+  transition: border-color 0.3s;
+}
+.card:hover { border-color: var(--border2); }
+.card-hdr {
+  display: flex; align-items: center; gap: 7px; margin-bottom: 12px;
+}
+.card-bar { width: 3px; height: 13px; border-radius: 2px; background: var(--accent); flex-shrink: 0; }
+.card-lbl { font-size: 9px; font-weight: 800; letter-spacing: 3px; text-transform: uppercase; color: var(--muted2); font-family: var(--mono); flex: 1; }
+.card-badge { font-size: 9px; color: var(--muted2); font-family: var(--mono); }
 
-  /* Connection status */
-  .ws-status { font-size: 9px; letter-spacing: 2px; color: var(--muted); }
-  .ws-status.connected { color: var(--success); }
+/* ── BUDGET METER ── */
+.budget-meter { margin-bottom: 8px; }
+.budget-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+.budget-used { font-size: 24px; font-weight: 900; color: white; font-family: var(--mono); }
+.budget-limit { font-size: 11px; color: var(--muted2); font-family: var(--mono); }
+.meter-track {
+  height: 8px; background: rgba(255,255,255,0.05);
+  border-radius: 4px; overflow: hidden; position: relative;
+}
+.meter-fill {
+  height: 100%; border-radius: 4px;
+  background: linear-gradient(90deg, var(--success), var(--cyan));
+  transition: width 0.8s ease, background 0.5s;
+}
+.meter-fill.warn { background: linear-gradient(90deg, var(--warn), var(--error)); }
+.budget-footer { display: flex; justify-content: space-between; margin-top: 7px; font-size: 10px; color: var(--muted2); font-family: var(--mono); }
+.budget-reset-btn {
+  padding: 2px 8px; background: transparent; border: 1px solid var(--border);
+  border-radius: 5px; color: var(--muted2); font-family: var(--mono);
+  font-size: 9px; cursor: pointer; transition: all 0.2s;
+}
+.budget-reset-btn:hover { border-color: var(--accent); color: var(--accent); }
 
-  /* Project info bar */
-  .project-info {
-    font-size: 10px; color: var(--muted); padding: 4px 8px;
-    background: rgba(99,102,241,0.05); border: 1px solid var(--border);
-    border-radius: 6px; max-width: 200px; overflow: hidden;
-    text-overflow: ellipsis; white-space: nowrap;
-  }
+/* ── BUILD & TODO ── */
+.build-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.pill {
+  padding: 3px 11px; border-radius: 20px;
+  font-size: 10px; font-weight: 800; letter-spacing: 1px; font-family: var(--mono);
+}
+.pill-ok   { background: rgba(16,185,129,0.12); color: var(--success); border: 1px solid rgba(16,185,129,0.3); }
+.pill-fail { background: rgba(239,68,68,0.12); color: var(--error); border: 1px solid rgba(239,68,68,0.3); }
+.pill-idle { background: rgba(100,116,139,0.12); color: var(--muted2); border: 1px solid var(--border); }
+.pill-run  { background: rgba(99,102,241,0.12); color: var(--accent); border: 1px solid rgba(99,102,241,0.3); animation: blink 1.2s infinite; }
+
+.todo-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 7px; }
+.todo-val { font-size: 11px; color: var(--muted2); font-family: var(--mono); }
+.todo-pct { font-size: 22px; font-weight: 900; color: white; font-family: var(--mono); }
+.prog-track { height: 5px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden; }
+.prog-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--cyan)); border-radius: 3px; transition: width 0.9s ease; }
+
+/* ── AI AGENT CARDS ── */
+.ai-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.ai-card {
+  padding: 10px 10px;
+  background: var(--surface3); border: 1px solid var(--border);
+  border-radius: 10px; transition: all 0.3s; cursor: default;
+  position: relative; overflow: hidden;
+}
+.ai-card::before {
+  content: ''; position: absolute; inset: 0; opacity: 0;
+  background: radial-gradient(circle at 50% 0%, var(--accent-glow), transparent 70%);
+  transition: opacity 0.4s;
+}
+.ai-card.running::before { opacity: 1; }
+.ai-card.running { border-color: var(--accent); }
+.ai-card.idle { border-color: rgba(16,185,129,0.2); }
+.ai-card.stopped { opacity: 0.5; }
+.ai-role { font-size: 8px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; color: var(--muted2); font-family: var(--mono); margin-bottom: 3px; }
+.ai-model { font-size: 9px; color: var(--cyan); font-family: var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 5px; }
+.ai-status-row { display: flex; align-items: center; gap: 5px; }
+.ai-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.ai-dot.idle    { background: var(--success); box-shadow: 0 0 6px var(--success-glow); }
+.ai-dot.running { background: var(--accent); box-shadow: 0 0 8px var(--accent-glow); animation: blink 0.8s infinite; }
+.ai-dot.stopped { background: var(--muted); }
+.ai-status-txt  { font-size: 9px; color: var(--muted2); font-family: var(--mono); }
+.ai-cost { font-size: 9px; color: var(--warn); font-family: var(--mono); margin-left: auto; }
+.ai-task-bar {
+  margin-top: 5px; height: 2px; background: rgba(255,255,255,0.05); border-radius: 2px; overflow: hidden;
+}
+.ai-task-fill {
+  height: 100%; background: linear-gradient(90deg, var(--accent), var(--cyan));
+  border-radius: 2px; transition: width 0.5s;
+}
+
+/* ── PM2 AGENTS ── */
+.pm2-list { display: flex; flex-direction: column; gap: 5px; }
+.pm2-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 10px; background: var(--bg);
+  border: 1px solid var(--border); border-radius: 8px;
+  transition: border-color 0.2s;
+}
+.pm2-row:hover { border-color: var(--border2); }
+.pm2-ind { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.pm2-ind.online  { background: var(--success); box-shadow: 0 0 6px var(--success-glow); animation: blink 2s infinite; }
+.pm2-ind.stopped { background: var(--muted); }
+.pm2-ind.errored { background: var(--error); }
+.pm2-name { flex: 1; font-size: 10px; font-weight: 700; font-family: var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pm2-stat { font-size: 9px; color: var(--muted2); font-family: var(--mono); }
+
+/* ── RIGHT PANEL ── */
+.rpanel { display: flex; flex-direction: column; overflow: hidden; background: var(--bg); }
+
+/* ── TABS ── */
+.tabs {
+  display: flex; align-items: center; gap: 0;
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  padding: 0 20px; flex-shrink: 0; overflow-x: auto;
+}
+.tab-btn {
+  padding: 12px 20px; background: transparent; border: none; border-bottom: 2px solid transparent;
+  color: var(--muted2); font-family: var(--mono); font-size: 10px; font-weight: 700;
+  letter-spacing: 2px; text-transform: uppercase; cursor: pointer; white-space: nowrap;
+  transition: all 0.2s;
+}
+.tab-btn:hover { color: var(--text); }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-spacer { flex: 1; }
+.tab-clear-btn {
+  padding: 5px 12px; background: transparent; border: 1px solid var(--border);
+  border-radius: 6px; color: var(--muted2); font-family: var(--mono);
+  font-size: 9px; cursor: pointer; transition: all 0.2s; white-space: nowrap;
+}
+.tab-clear-btn:hover { border-color: var(--muted2); color: var(--text); }
+/* macOS dots */
+.mac-dots { display: flex; gap: 5px; padding-right: 14px; }
+.mac-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+/* ── TERMINAL ── */
+.tab-pane { display: none; flex: 1; overflow: hidden; flex-direction: column; }
+.tab-pane.active { display: flex; }
+
+.terminal {
+  flex: 1; padding: 18px 20px; overflow-y: auto;
+  font-family: var(--mono); font-size: 12.5px; line-height: 1.75;
+}
+.terminal::-webkit-scrollbar { width: 4px; }
+.terminal::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
+
+.log-line { display: flex; gap: 12px; margin-bottom: 1px; }
+.log-ts { color: var(--muted); flex-shrink: 0; font-size: 10px; padding-top: 2px; }
+.log-msg { word-break: break-all; }
+.log-msg.success { color: var(--success); }
+.log-msg.error   { color: var(--error); }
+.log-msg.warn    { color: var(--warn); }
+.log-msg.start   { color: var(--accent); font-weight: 700; }
+.log-msg.system  { color: var(--cyan); }
+.log-msg.stderr  { color: #f97316; }
+.log-msg.budget  { color: var(--error); font-weight: 700; }
+
+/* ── SHELL INPUT BAR ── */
+.shell-bar {
+  padding: 12px 20px; background: var(--surface); border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.shell-row { display: flex; gap: 8px; align-items: center; }
+.shell-cwd {
+  font-size: 10px; color: var(--accent); font-family: var(--mono); white-space: nowrap;
+  max-width: 120px; overflow: hidden; text-overflow: ellipsis;
+}
+.shell-prompt { color: var(--success); font-family: var(--mono); font-size: 13px; flex-shrink: 0; }
+.shell-input {
+  flex: 1; background: transparent; border: none; outline: none;
+  color: var(--text); font-family: var(--mono); font-size: 13px;
+  caret-color: var(--accent);
+}
+.shell-run {
+  padding: 7px 18px; background: var(--accent); border: none; border-radius: 8px;
+  color: white; font-family: var(--mono); font-size: 11px; font-weight: 800;
+  cursor: pointer; white-space: nowrap; transition: all 0.2s;
+}
+.shell-run:hover { background: #4f46e5; }
+
+/* ── MISSIONS TAB ── */
+.missions-pane { padding: 16px; overflow-y: auto; gap: 14px; }
+.missions-pane::-webkit-scrollbar { width: 3px; }
+.missions-pane::-webkit-scrollbar-thumb { background: rgba(99,102,241,0.2); }
+
+.mission-grid { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+.mission-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 10px; cursor: pointer; transition: all 0.2s;
+}
+.mission-item:hover { border-color: var(--accent); background: rgba(99,102,241,0.05); }
+.mission-item.running { border-color: var(--accent); background: rgba(99,102,241,0.1); }
+.mission-icon { font-size: 14px; flex-shrink: 0; }
+.mission-name { flex: 1; font-size: 12px; font-weight: 600; font-family: var(--mono); }
+.mission-run  { font-size: 11px; color: var(--muted2); flex-shrink: 0; transition: color 0.2s; }
+.mission-item:hover .mission-run { color: var(--accent); }
+.mission-del {
+  padding: 2px 8px; background: transparent; border: 1px solid var(--border);
+  border-radius: 5px; color: var(--muted2); font-family: var(--mono);
+  font-size: 9px; cursor: pointer; transition: all 0.2s;
+}
+.mission-del:hover { border-color: var(--error); color: var(--error); }
+
+/* ── CUSTOM MISSION ADD FORM ── */
+.add-mission-card {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 12px; padding: 14px;
+}
+.add-mission-title { font-size: 9px; font-weight: 800; letter-spacing: 3px; text-transform: uppercase; color: var(--muted2); font-family: var(--mono); margin-bottom: 10px; }
+.form-row { display: flex; gap: 8px; margin-bottom: 8px; }
+.form-input {
+  flex: 1; padding: 9px 12px; background: var(--bg); border: 1px solid var(--border);
+  border-radius: 8px; color: var(--text); font-family: var(--mono); font-size: 12px;
+  outline: none; transition: border-color 0.2s;
+}
+.form-input:focus { border-color: var(--accent); }
+.form-btn {
+  padding: 9px 18px; background: var(--accent); border: none; border-radius: 8px;
+  color: white; font-family: var(--mono); font-size: 11px; font-weight: 800;
+  cursor: pointer; white-space: nowrap; transition: all 0.2s;
+}
+.form-btn:hover { background: #4f46e5; }
+
+/* ── RESPONSIVE ── */
+@media (max-width: 768px) {
+  .main-grid { grid-template-columns: 1fr; }
+  .lpanel { max-height: 50vh; }
+}
+
+/* ── TOAST ── */
+.toast {
+  position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+  padding: 10px 20px; border-radius: 10px; font-family: var(--mono);
+  font-size: 12px; font-weight: 700; animation: toastIn 0.3s ease;
+  pointer-events: none;
+}
+@keyframes toastIn { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+.toast.ok  { background: rgba(16,185,129,0.15); border: 1px solid rgba(16,185,129,0.4); color: var(--success); }
+.toast.err { background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.4); color: var(--error); }
+
+/* ── SEPARATOR ── */
+.sep { height: 1px; background: var(--border); border: none; margin: 4px 0; }
 </style>
 </head>
 <body>
@@ -224,477 +416,642 @@
 <!-- LOGIN -->
 <div id="login-screen">
   <div class="login-card">
-    <div class="login-logo">🛰</div>
+    <div class="login-icon">🛰</div>
     <div class="login-title">MISSION CONTROL</div>
-    <div class="login-sub">AI Agent Command Center</div>
-    <input class="login-input" type="password" id="pw-input" placeholder="비밀번호 입력..." autocomplete="current-password">
-    <button class="login-btn" onclick="doLogin()">▶ ACCESS SYSTEM</button>
-    <div class="login-error" id="login-error"></div>
+    <div class="login-sub">AI Agent Command Center v3.0</div>
+    <input class="login-input" type="password" id="pw" placeholder="Access password..." autocomplete="current-password">
+    <button class="login-btn" onclick="doLogin()">▶ ENTER SYSTEM</button>
+    <div class="login-err" id="login-err"></div>
   </div>
 </div>
 
-<!-- DASHBOARD -->
-<div id="dashboard">
+<!-- APP -->
+<div id="app">
 
-  <!-- Header -->
-  <header class="header">
-    <div class="header-left">
-      <div class="pulse"></div>
+  <!-- HEADER -->
+  <header class="hdr">
+    <div class="hdr-brand">
+      <div class="live-dot"></div>
       <div>
-        <div class="header-title">🛰 AGENT MISSION CONTROL v2.1</div>
-        <div class="header-sub">AI Swarm Command Center</div>
+        <div class="hdr-title">🛰 AGENT MISSION CONTROL</div>
+        <div class="hdr-version">v3.0 · AI SWARM ORCHESTRATOR</div>
       </div>
     </div>
 
-    <!-- Project selector (center) -->
-    <div style="display:flex;align-items:center;gap:6px;flex:1;justify-content:center;max-width:280px;">
-      <span class="project-label">PROJECT</span>
-      <select class="project-select" id="project-select" onchange="switchProject(this.value)">
-        <option value="">로딩 중...</option>
+    <div class="hdr-center">
+      <span class="proj-label">PROJECT</span>
+      <select class="proj-select" id="proj-sel" onchange="switchProject(this.value)">
+        <option>로딩 중...</option>
       </select>
     </div>
 
-    <div class="header-right">
-      <span class="ws-status" id="ws-status">CONNECTING...</span>
-      <span class="server-time" id="server-time"></span>
+    <div class="hdr-right">
+      <span class="ws-badge" id="ws-badge">CONNECTING</span>
+      <span class="hdr-time" id="hdr-time"></span>
+      <button class="kill-btn" onclick="emergencyStop()">🛑 KILL ALL</button>
       <button class="logout-btn" onclick="doLogout()">LOGOUT</button>
     </div>
   </header>
 
-  <div class="main">
+  <div class="main-grid">
 
     <!-- LEFT PANEL -->
-    <div class="left-panel">
+    <div class="lpanel">
 
-      <!-- Build Status -->
+      <!-- BUDGET METER -->
       <div class="card">
-        <div class="card-title"><span></span>BUILD STATUS</div>
-        <div class="build-status">
-          <div class="build-badge badge-pending" id="build-badge">— PENDING</div>
+        <div class="card-hdr">
+          <div class="card-bar" style="background:var(--warn)"></div>
+          <div class="card-lbl">BUDGET METER</div>
+          <button class="budget-reset-btn" onclick="resetBudget()">RESET</button>
         </div>
-        <div style="font-size:11px;color:var(--muted);margin-top:6px" id="build-time"></div>
-        <div style="font-size:11px;color:var(--muted)" id="build-violations"></div>
-      </div>
-
-      <!-- Todo Progress -->
-      <div class="card">
-        <div class="card-title"><span></span>TODO PROGRESS</div>
-        <div class="progress-label">
-          <span id="todo-label" style="font-size:12px">로딩 중...</span>
-          <span id="todo-pct" style="font-size:16px;font-weight:900;color:white">—%</span>
-        </div>
-        <div class="progress-bar">
-          <div class="progress-fill" id="progress-fill" style="width:0%"></div>
-        </div>
-      </div>
-
-      <!-- Agent Status -->
-      <div class="card">
-        <div class="card-title">
-          <span></span>AGENT STATUS
-          <span style="margin-left:auto;font-size:9px;color:var(--muted);letter-spacing:0" id="agent-count"></span>
-        </div>
-        <div class="agent-list" id="agent-list">
-          <div style="font-size:11px;color:var(--muted)">로딩 중...</div>
-        </div>
-      </div>
-
-      <!-- Missions -->
-      <div class="card">
-        <div class="card-title"><span></span>MISSIONS</div>
-        <div class="mission-list" id="mission-list">
-          <div style="font-size:11px;color:var(--muted)">로딩 중...</div>
-        </div>
-      </div>
-
-      <!-- Log files -->
-      <div class="card">
-        <div class="card-title"><span></span>LOG FILES</div>
-        <div class="log-list" id="log-list">
-          <div style="font-size:11px;color:var(--muted)">로딩 중...</div>
-        </div>
-      </div>
-
-    </div>
-
-    <!-- RIGHT PANEL — TERMINAL -->
-    <div class="right-panel">
-      <div class="terminal-header">
-        <div>
-          <div style="display:flex;gap:6px" class="terminal-controls">
-            <div class="t-dot" style="background:#ff5f57"></div>
-            <div class="t-dot" style="background:#febc2e"></div>
-            <div class="t-dot" style="background:#28c840"></div>
+        <div class="budget-meter">
+          <div class="budget-row">
+            <div class="budget-used" id="budget-used">$0.00</div>
+            <div class="budget-limit" id="budget-limit">/ $10.00</div>
+          </div>
+          <div class="meter-track">
+            <div class="meter-fill" id="meter-fill" style="width:0%"></div>
+          </div>
+          <div class="budget-footer">
+            <span id="budget-pct">0% used</span>
+            <span id="budget-left">$10.00 remaining</span>
           </div>
         </div>
-        <span class="terminal-title">RECON_FEED_LIVE — Mission Output</span>
-        <button class="clear-btn" onclick="clearTerminal()">CLEAR</button>
       </div>
 
-      <div class="terminal-body" id="terminal">
-        <div class="log-line">
-          <span class="log-time">--:--:--</span>
-          <span class="log-text system">// Waiting for signal...</span>
+      <!-- BUILD STATUS + TODO -->
+      <div class="card">
+        <div class="card-hdr">
+          <div class="card-bar" style="background:var(--success)"></div>
+          <div class="card-lbl">BUILD STATUS</div>
+        </div>
+        <div class="build-row">
+          <div class="pill pill-idle" id="build-pill">— PENDING</div>
+          <div style="font-size:10px;color:var(--muted2);font-family:var(--mono)" id="build-time"></div>
+        </div>
+        <hr class="sep">
+        <div class="card-hdr" style="margin-top:10px;margin-bottom:8px">
+          <div class="card-bar" style="background:var(--cyan)"></div>
+          <div class="card-lbl">TODO PROGRESS</div>
+        </div>
+        <div class="todo-row">
+          <div class="todo-val" id="todo-lbl">로딩 중...</div>
+          <div class="todo-pct" id="todo-pct">—%</div>
+        </div>
+        <div class="prog-track">
+          <div class="prog-fill" id="prog-fill" style="width:0%"></div>
         </div>
       </div>
 
-      <div class="cmd-area">
-        <div class="cmd-row">
-          <select class="cmd-select" id="cmd-select">
-            <option value="">미션 선택...</option>
-          </select>
-          <button class="cmd-run-btn" id="run-btn" onclick="runSelectedMission()">▶ EXECUTE</button>
+      <!-- AI AGENTS -->
+      <div class="card">
+        <div class="card-hdr">
+          <div class="card-bar" style="background:var(--purple)"></div>
+          <div class="card-lbl">AI AGENTS</div>
+          <div class="card-badge" id="ai-summary"></div>
+        </div>
+        <div class="ai-grid" id="ai-grid">
+          <!-- filled by JS -->
         </div>
       </div>
+
+      <!-- PM2 PROCESSES -->
+      <div class="card">
+        <div class="card-hdr">
+          <div class="card-bar" style="background:var(--cyan)"></div>
+          <div class="card-lbl">PM2 PROCESSES</div>
+          <div class="card-badge" id="pm2-summary"></div>
+        </div>
+        <div class="pm2-list" id="pm2-list">
+          <div style="font-size:10px;color:var(--muted2);font-family:var(--mono)">로딩 중...</div>
+        </div>
+      </div>
+
     </div>
 
-  </div>
-</div>
+    <!-- RIGHT PANEL -->
+    <div class="rpanel">
+
+      <!-- TABS -->
+      <div class="tabs">
+        <div class="mac-dots">
+          <div class="mac-dot" style="background:#ff5f57"></div>
+          <div class="mac-dot" style="background:#febc2e"></div>
+          <div class="mac-dot" style="background:#28c840"></div>
+        </div>
+        <button class="tab-btn active" onclick="switchTab('terminal', this)">TERMINAL</button>
+        <button class="tab-btn" onclick="switchTab('missions', this)">MISSIONS</button>
+        <button class="tab-btn" onclick="switchTab('shell', this)">SHELL</button>
+        <div class="tab-spacer"></div>
+        <button class="tab-clear-btn" onclick="clearTerminal()">CLEAR</button>
+      </div>
+
+      <!-- TAB: TERMINAL -->
+      <div class="tab-pane active" id="pane-terminal" style="flex-direction:column">
+        <div class="terminal" id="terminal">
+          <div class="log-line">
+            <span class="log-ts">--:--:--</span>
+            <span class="log-msg system">// Waiting for signal... Agent Mission Control v3.0 ready.</span>
+          </div>
+        </div>
+        <div class="shell-bar">
+          <div class="shell-row">
+            <span class="shell-cwd" id="shell-cwd">/root</span>
+            <span class="shell-prompt">❯</span>
+            <input class="shell-input" id="shell-input" placeholder="Enter shell command..." autocomplete="off" spellcheck="false">
+            <button class="shell-run" onclick="runShell()">RUN</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: MISSIONS -->
+      <div class="tab-pane" id="pane-missions">
+        <div class="missions-pane">
+          <div class="card-hdr" style="margin-bottom:10px">
+            <div class="card-bar"></div>
+            <div class="card-lbl">DEFAULT MISSIONS</div>
+          </div>
+          <div class="mission-grid" id="default-missions"></div>
+
+          <div class="card-hdr" style="margin:14px 0 10px">
+            <div class="card-bar" style="background:var(--purple)"></div>
+            <div class="card-lbl">CUSTOM MISSIONS</div>
+          </div>
+          <div class="mission-grid" id="custom-missions"></div>
+
+          <div class="add-mission-card">
+            <div class="add-mission-title">+ ADD CUSTOM MISSION</div>
+            <div class="form-row">
+              <input class="form-input" id="new-mission-id" placeholder="ID (e.g. lint)">
+              <input class="form-input" id="new-mission-label" placeholder="Label (e.g. ESLint 실행)">
+            </div>
+            <div class="form-row">
+              <input class="form-input" id="new-mission-cmd" placeholder="Command (e.g. npx eslint src/)">
+              <button class="form-btn" onclick="addCustomMission()">ADD</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: SHELL (history) -->
+      <div class="tab-pane" id="pane-shell" style="flex-direction:column">
+        <div class="terminal" id="shell-log">
+          <div class="log-line">
+            <span class="log-ts">--:--:--</span>
+            <span class="log-msg system">// Shell history — run commands in TERMINAL tab</span>
+          </div>
+        </div>
+        <div class="shell-bar">
+          <div class="shell-row" style="margin-bottom:0">
+            <span style="font-size:10px;color:var(--muted2);font-family:var(--mono)">HISTORY</span>
+            <div style="flex:1"></div>
+            <button class="tab-clear-btn" onclick="clearShellLog()" style="font-size:9px">CLEAR HISTORY</button>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- rpanel -->
+  </div><!-- main-grid -->
+</div><!-- app -->
 
 <script>
-  let token = localStorage.getItem('mc_token');
-  let ws    = null;
-  let runningMission = null;
+/* ── STATE ─────────────────────────────────────────── */
+let token = localStorage.getItem('mc_token');
+let ws = null;
+let runningMission = null;
+let currentTab = 'terminal';
+let aiAgents = [];
 
-  // ── 초기화 ──────────────────────────────────────────
-  window.addEventListener('load', () => {
-    if (token) {
-      showDashboard();
-    }
-    document.getElementById('pw-input').addEventListener('keydown', e => {
-      if (e.key === 'Enter') doLogin();
+/* ── INIT ────────────────────────────────────────────  */
+window.addEventListener('load', () => {
+  if (token) showApp();
+  document.getElementById('pw').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+  document.getElementById('shell-input').addEventListener('keydown', e => { if (e.key === 'Enter') runShell(); });
+  setInterval(() => { document.getElementById('hdr-time').textContent = new Date().toLocaleString('ko-KR'); }, 1000);
+});
+
+/* ── AUTH ─────────────────────────────────────────── */
+async function doLogin() {
+  const pw = document.getElementById('pw').value;
+  const err = document.getElementById('login-err');
+  err.textContent = '';
+  try {
+    const r = await fetch('/api/auth/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pw }),
     });
-    updateClock();
-    setInterval(updateClock, 1000);
+    const d = await r.json();
+    if (!r.ok) { err.textContent = d.error; return; }
+    token = d.token;
+    localStorage.setItem('mc_token', token);
+    showApp();
+  } catch { err.textContent = '서버 연결 실패'; }
+}
+
+function doLogout() {
+  localStorage.removeItem('mc_token');
+  token = null;
+  if (ws) ws.close();
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('pw').value = '';
+}
+
+/* ── SHOW APP ─────────────────────────────────────── */
+async function showApp() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  connectWS();
+  await Promise.all([loadStatus(), loadProjects(), loadPm2Agents(), loadAiAgents(), loadBudget(), loadMissions()]);
+  setInterval(loadStatus, 15000);
+  setInterval(loadPm2Agents, 10000);
+  setInterval(loadAiAgents, 8000);
+  setInterval(loadBudget, 20000);
+}
+
+/* ── API HELPER ──────────────────────────────────── */
+async function api(path, opts = {}) {
+  opts.headers = { ...(opts.headers||{}), Authorization: `Bearer ${token}` };
+  if (opts.body && typeof opts.body !== 'string') {
+    opts.body = JSON.stringify(opts.body);
+    opts.headers['Content-Type'] = 'application/json';
+  }
+  const r = await fetch(path, opts);
+  if (r.status === 401) doLogout();
+  return r;
+}
+
+/* ── TABS ─────────────────────────────────────────── */
+function switchTab(name, el) {
+  currentTab = name;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById(`pane-${name}`).classList.add('active');
+  if (name === 'missions') loadMissions();
+  if (name === 'shell') loadShellHistory();
+}
+
+/* ── PROJECTS ─────────────────────────────────────── */
+async function loadProjects() {
+  const r = await api('/api/projects');
+  if (!r.ok) return;
+  const d = await r.json();
+  const sel = document.getElementById('proj-sel');
+  sel.innerHTML = '';
+  d.projects.forEach(p => {
+    const o = document.createElement('option');
+    o.value = p.id; o.textContent = p.label;
+    if (p.id === d.current?.id) o.selected = true;
+    sel.appendChild(o);
   });
+  if (d.current?.root) document.getElementById('shell-cwd').textContent = d.current.root;
+}
 
-  function updateClock() {
-    document.getElementById('server-time').textContent = new Date().toLocaleString('ko-KR');
-  }
-
-  // ── 로그인 ──────────────────────────────────────────
-  async function doLogin() {
-    const pw  = document.getElementById('pw-input').value;
-    const err = document.getElementById('login-error');
-    err.textContent = '';
-    try {
-      const res  = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: pw }),
-      });
-      const data = await res.json();
-      if (!res.ok) { err.textContent = data.error; return; }
-      token = data.token;
-      localStorage.setItem('mc_token', token);
-      showDashboard();
-    } catch {
-      err.textContent = '서버 연결 실패';
-    }
-  }
-
-  function doLogout() {
-    localStorage.removeItem('mc_token');
-    token = null;
-    if (ws) ws.close();
-    document.getElementById('dashboard').style.display = 'none';
-    document.getElementById('login-screen').style.display = 'flex';
-    document.getElementById('pw-input').value = '';
-  }
-
-  // ── 대시보드 표시 ────────────────────────────────────
-  async function showDashboard() {
-    document.getElementById('login-screen').style.display = 'none';
-    document.getElementById('dashboard').style.display = 'flex';
-    await Promise.all([loadStatus(), loadProjects(), loadAgents()]);
-    connectWS();
-    setInterval(loadStatus, 15000);
-    setInterval(loadAgents, 10000); // 에이전트 상태 10초마다 갱신
-  }
-
-  // ── 프로젝트 목록 로드 ────────────────────────────────
-  async function loadProjects() {
-    try {
-      const res  = await fetch('/api/projects', { headers: { Authorization: `Bearer ${token}` } });
-      if (!res.ok) return;
-      const data = await res.json();
-      const sel  = document.getElementById('project-select');
-      sel.innerHTML = '';
-      data.projects.forEach(p => {
-        const opt = document.createElement('option');
-        opt.value = p.id;
-        opt.textContent = p.label;
-        if (p.id === data.current?.id) opt.selected = true;
-        sel.appendChild(opt);
-      });
-    } catch {}
-  }
-
-  // ── 프로젝트 전환 ────────────────────────────────────
-  async function switchProject(projectId) {
-    if (!projectId) return;
-    try {
-      const res = await fetch('/api/projects/switch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ projectId }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        addLog(`📁 프로젝트 전환: ${data.current.label} (${data.current.root})`, 'system');
-        await loadStatus();
-      }
-    } catch {}
-  }
-
-  // ── 에이전트 상태 로드 ────────────────────────────────
-  async function loadAgents() {
-    try {
-      const res  = await fetch('/api/agents', { headers: { Authorization: `Bearer ${token}` } });
-      if (!res.ok) return;
-      const data = await res.json();
-      updateAgentList(data.agents);
-    } catch {}
-  }
-
-  function updateAgentList(agents) {
-    const list = document.getElementById('agent-list');
-    const countEl = document.getElementById('agent-count');
-
-    if (!agents?.length) {
-      list.innerHTML = '<div style="font-size:11px;color:var(--muted)">실행 중인 에이전트 없음</div>';
-      countEl.textContent = '';
-      return;
-    }
-
-    const online = agents.filter(a => a.status === 'online').length;
-    countEl.textContent = `${online}/${agents.length} ONLINE`;
-
-    list.innerHTML = '';
-    agents.forEach(a => {
-      const row = document.createElement('div');
-      row.className = 'agent-row';
-
-      const statusClass = a.status === 'online' ? 'online'
-        : a.status === 'launching' ? 'launching'
-        : a.status === 'errored'   ? 'errored'
-        : 'stopped';
-
-      const uptime = a.uptime ? formatUptime(Date.now() - a.uptime) : '—';
-      const memText = a.memory > 0 ? `${a.memory}MB` : '—';
-      const cpuText = a.cpu > 0 ? `${a.cpu}%` : '—';
-
-      row.innerHTML = `
-        <div class="agent-indicator ${statusClass}"></div>
-        <div class="agent-name" title="${a.name}">${a.name}</div>
-        <div class="agent-meta">
-          <span class="agent-stat mem">${memText}</span>
-          <span class="agent-stat">${uptime}</span>
-        </div>
-      `;
-      list.appendChild(row);
-    });
-  }
-
-  function formatUptime(ms) {
-    if (ms < 0) return '—';
-    const s = Math.floor(ms / 1000);
-    if (s < 60) return `${s}s`;
-    const m = Math.floor(s / 60);
-    if (m < 60) return `${m}m`;
-    const h = Math.floor(m / 60);
-    if (h < 24) return `${h}h`;
-    return `${Math.floor(h / 24)}d`;
-  }
-
-  // ── 상태 로드 ────────────────────────────────────────
-  async function loadStatus() {
-    try {
-      const res  = await fetch('/api/status', { headers: { Authorization: `Bearer ${token}` } });
-      if (res.status === 401) { doLogout(); return; }
-      const data = await res.json();
-      updateBuildStatus(data.build);
-      updateTodo(data.todo);
-      updateMissions(data.missions);
-      updateLogList(data.logs);
-    } catch {}
-  }
-
-  function updateBuildStatus(build) {
-    const badge = document.getElementById('build-badge');
-    const time  = document.getElementById('build-time');
-    const viol  = document.getElementById('build-violations');
-    if (!build) return;
-    const s = build.status;
-    badge.textContent = s === 'success' ? '✅ SUCCESS' : s === 'failed' ? '❌ FAILED' : '🛑 BLOCKED';
-    badge.className = `build-badge ${s === 'success' ? 'badge-success' : s === 'failed' ? 'badge-failed' : 'badge-failed'}`;
-    if (build.timestamp) time.textContent = new Date(build.timestamp).toLocaleString('ko-KR');
-    if (build.violations?.length) {
-      viol.textContent = `위반 ${build.violations.length}건`;
-      viol.style.color = 'var(--error)';
-    } else {
-      viol.textContent = '위반 없음';
-      viol.style.color = 'var(--success)';
-    }
-  }
-
-  function updateTodo(todo) {
-    if (!todo) return;
-    document.getElementById('todo-label').textContent = `완료 ${todo.done} / 전체 ${todo.total}`;
-    document.getElementById('todo-pct').textContent = `${todo.progress}%`;
-    document.getElementById('progress-fill').style.width = `${todo.progress}%`;
-  }
-
-  function updateMissions(missions) {
-    if (!missions?.length) return;
-    const list   = document.getElementById('mission-list');
-    const select = document.getElementById('cmd-select');
-    list.innerHTML = '';
-    select.innerHTML = '<option value="">미션 선택...</option>';
-
-    missions.forEach(m => {
-      const btn = document.createElement('button');
-      btn.className = 'mission-btn';
-      btn.id = `mission-btn-${m.id}`;
-      btn.innerHTML = `<span>${m.label}</span><span class="run-icon">▶</span>`;
-      btn.onclick = () => runMission(m.id, m.label);
-      list.appendChild(btn);
-
-      const opt = document.createElement('option');
-      opt.value = m.id;
-      opt.textContent = m.label;
-      select.appendChild(opt);
-    });
-  }
-
-  function updateLogList(logs) {
-    const list = document.getElementById('log-list');
-    if (!logs?.length) { list.innerHTML = '<div style="font-size:11px;color:var(--muted)">로그 없음</div>'; return; }
-    list.innerHTML = '';
-    logs.forEach(f => {
-      const item = document.createElement('div');
-      item.className = 'log-item';
-      item.textContent = `📄 ${f}`;
-      item.onclick = () => loadLogFile(f);
-      list.appendChild(item);
-    });
-  }
-
-  async function loadLogFile(filename) {
-    try {
-      const res  = await fetch(`/api/logs/${filename}`, { headers: { Authorization: `Bearer ${token}` } });
-      const data = await res.json();
-      clearTerminal();
-      addLog(`📄 ${filename} 내용:`, 'system');
-      data.content.split('\n').slice(-100).forEach(line => addLog(line, 'log'));
-    } catch {}
-  }
-
-  // ── 미션 실행 ────────────────────────────────────────
-  async function runMission(missionId, label) {
-    if (runningMission) {
-      addLog(`⚠️ 다른 미션 실행 중: ${runningMission}`, 'warn');
-      return;
-    }
-    runningMission = missionId;
-
-    const btn = document.getElementById(`mission-btn-${missionId}`);
-    if (btn) { btn.classList.add('running'); btn.disabled = true; }
-    document.getElementById('run-btn').disabled = true;
-
-    addLog(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`, 'system');
-    addLog(`▶ 미션 시작: ${label || missionId}`, 'start');
-
-    try {
-      await fetch('/api/mission/run', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ missionId }),
-      });
-    } catch {
-      addLog('❌ 미션 시작 실패', 'error');
-      resetMissionUI(missionId);
-    }
-
-    setTimeout(() => {
-      if (runningMission === missionId) resetMissionUI(missionId);
-    }, 120000);
-  }
-
-  function runSelectedMission() {
-    const sel = document.getElementById('cmd-select');
-    if (!sel.value) return;
-    const label = sel.options[sel.selectedIndex].text;
-    runMission(sel.value, label);
-  }
-
-  function resetMissionUI(missionId) {
-    runningMission = null;
-    const btn = document.getElementById(`mission-btn-${missionId}`);
-    if (btn) { btn.classList.remove('running'); btn.disabled = false; }
-    document.getElementById('run-btn').disabled = false;
+async function switchProject(id) {
+  if (!id) return;
+  const r = await api('/api/projects/switch', { method: 'POST', body: { projectId: id } });
+  const d = await r.json();
+  if (r.ok) {
+    addLog(`📁 프로젝트 전환: ${d.current.label}`, 'system');
+    document.getElementById('shell-cwd').textContent = d.current.root;
     loadStatus();
-    loadAgents();
+  }
+}
+
+/* ── STATUS ──────────────────────────────────────── */
+async function loadStatus() {
+  try {
+    const r = await api('/api/status');
+    if (!r.ok) return;
+    const d = await r.json();
+    updateBuild(d.build);
+    updateTodo(d.todo);
+  } catch {}
+}
+
+function updateBuild(b) {
+  const pill = document.getElementById('build-pill');
+  const time = document.getElementById('build-time');
+  if (!b) return;
+  const s = b.status;
+  pill.textContent = s === 'success' ? '✅ SUCCESS' : s === 'failed' ? '❌ FAILED' : '— PENDING';
+  pill.className = `pill ${s === 'success' ? 'pill-ok' : s === 'failed' ? 'pill-fail' : 'pill-idle'}`;
+  if (b.timestamp) time.textContent = new Date(b.timestamp).toLocaleTimeString('ko-KR');
+}
+
+function updateTodo(t) {
+  if (!t) return;
+  document.getElementById('todo-lbl').textContent = `${t.done} / ${t.total} 완료`;
+  document.getElementById('todo-pct').textContent = `${t.progress}%`;
+  document.getElementById('prog-fill').style.width = `${t.progress}%`;
+}
+
+/* ── BUDGET ──────────────────────────────────────── */
+async function loadBudget() {
+  try {
+    const r = await api('/api/cost');
+    if (!r.ok) return;
+    updateBudgetUI(await r.json());
+  } catch {}
+}
+
+function updateBudgetUI(d) {
+  const pct = Math.min((d.totalUSD / d.limitUSD) * 100, 100);
+  document.getElementById('budget-used').textContent = `$${d.totalUSD.toFixed(3)}`;
+  document.getElementById('budget-limit').textContent = `/ $${d.limitUSD.toFixed(2)}`;
+  document.getElementById('meter-fill').style.width = `${pct}%`;
+  document.getElementById('meter-fill').className = `meter-fill${pct >= 80 ? ' warn' : ''}`;
+  document.getElementById('budget-pct').textContent = `${pct.toFixed(1)}% used`;
+  document.getElementById('budget-left').textContent = `$${Math.max(0, d.limitUSD - d.totalUSD).toFixed(2)} remaining`;
+}
+
+async function resetBudget() {
+  const newLimit = prompt('새 예산 한도 (USD):', '10');
+  if (newLimit === null) return;
+  const r = await api('/api/cost/reset', { method: 'POST', body: { limitUSD: parseFloat(newLimit) || 10 } });
+  if (r.ok) { updateBudgetUI((await r.json()).costData); showToast('예산이 초기화되었습니다.', 'ok'); }
+}
+
+/* ── AI AGENTS ─────────────────────────────────────── */
+const AI_ICONS = { architect:'🏗', orchestrator:'🎯', worker:'⚡', designer:'🎨', reviewer:'🔍', integrator:'🤝' };
+
+async function loadAiAgents() {
+  try {
+    const r = await api('/api/agents/ai');
+    if (!r.ok) return;
+    const d = await r.json();
+    aiAgents = d.agents;
+    renderAiGrid(d.agents);
+    if (d.budget) updateBudgetUI(d.budget);
+  } catch {}
+}
+
+function renderAiGrid(agents) {
+  const grid = document.getElementById('ai-grid');
+  const running = agents.filter(a => a.status === 'running').length;
+  const idle = agents.filter(a => a.status === 'idle').length;
+  document.getElementById('ai-summary').textContent = `${idle} IDLE · ${running} RUNNING`;
+
+  grid.innerHTML = agents.map(a => `
+    <div class="ai-card ${a.status}" id="ai-${a.role}">
+      <div class="ai-role">${AI_ICONS[a.role]||'🤖'} ${a.role}</div>
+      <div class="ai-model" title="${a.modelId}">${a.modelId.split('/').pop()}</div>
+      <div class="ai-status-row">
+        <div class="ai-dot ${a.status}"></div>
+        <span class="ai-status-txt">${a.task || a.status.toUpperCase()}</span>
+        <span class="ai-cost">${a.costUSD > 0 ? '$' + a.costUSD.toFixed(4) : ''}</span>
+      </div>
+      <div class="ai-task-bar"><div class="ai-task-fill" style="width:${a.progress}%"></div></div>
+    </div>
+  `).join('');
+}
+
+/* ── PM2 AGENTS ──────────────────────────────────── */
+async function loadPm2Agents() {
+  try {
+    const r = await api('/api/agents');
+    if (!r.ok) return;
+    const d = await r.json();
+    renderPm2(d.agents);
+  } catch {}
+}
+
+function renderPm2(agents) {
+  const list = document.getElementById('pm2-list');
+  const online = agents.filter(a => a.status === 'online').length;
+  document.getElementById('pm2-summary').textContent = `${online}/${agents.length} ONLINE`;
+
+  if (!agents.length) {
+    list.innerHTML = '<div style="font-size:10px;color:var(--muted2);font-family:var(--mono)">pm2 프로세스 없음</div>';
+    return;
+  }
+  list.innerHTML = agents.map(a => {
+    const cls = a.status === 'online' ? 'online' : a.status === 'errored' ? 'errored' : 'stopped';
+    const mem = a.memory > 0 ? `${a.memory}MB` : '—';
+    const up = a.uptime ? fmtUptime(Date.now() - a.uptime) : '—';
+    return `
+      <div class="pm2-row">
+        <div class="pm2-ind ${cls}"></div>
+        <div class="pm2-name" title="${a.name}">${a.name}</div>
+        <div class="pm2-stat">${mem}</div>
+        <div class="pm2-stat">${up}</div>
+      </div>`;
+  }).join('');
+}
+
+/* ── MISSIONS ─────────────────────────────────────── */
+async function loadMissions() {
+  try {
+    const [r1, r2] = await Promise.all([api('/api/status'), api('/api/missions/custom')]);
+    const status = await r1.json();
+    const custom = await r2.json();
+
+    const all = status.missions || [];
+    const customIds = Object.keys(custom.missions || {});
+    const defaultMissions = all.filter(m => !customIds.includes(m.id));
+    const customMissions  = all.filter(m => customIds.includes(m.id));
+
+    renderMissionGrid('default-missions', defaultMissions, false);
+    renderMissionGrid('custom-missions', customMissions, true);
+  } catch {}
+}
+
+function renderMissionGrid(containerId, missions, isDeletable) {
+  const el = document.getElementById(containerId);
+  if (!missions.length) { el.innerHTML = '<div style="font-size:10px;color:var(--muted2);font-family:var(--mono)">없음</div>'; return; }
+  const ICONS = { build:'🔨', 'git-status':'📊', 'git-log':'📋', 'git-pull':'⬇', 'pnpm-install':'📦' };
+  el.innerHTML = missions.map(m => `
+    <div class="mission-item" id="mi-${m.id}">
+      <span class="mission-icon">${ICONS[m.id] || '⚙️'}</span>
+      <span class="mission-name">${m.label}</span>
+      ${isDeletable ? `<button class="mission-del" onclick="deleteCustomMission('${m.id}', event)">DEL</button>` : ''}
+      <span class="mission-run" onclick="runMission('${m.id}', '${m.label}')">▶ RUN</span>
+    </div>`).join('');
+
+  // attach click to whole row (except delete btn)
+  missions.forEach(m => {
+    const el2 = document.getElementById(`mi-${m.id}`);
+    if (el2) el2.onclick = (e) => {
+      if (e.target.classList.contains('mission-del')) return;
+      runMission(m.id, m.label);
+    };
+  });
+}
+
+async function addCustomMission() {
+  const id    = document.getElementById('new-mission-id').value.trim();
+  const label = document.getElementById('new-mission-label').value.trim();
+  const cmd   = document.getElementById('new-mission-cmd').value.trim();
+  if (!id || !label || !cmd) { showToast('모든 필드를 입력하세요.', 'err'); return; }
+  const r = await api('/api/missions/custom', { method: 'POST', body: { id, label, command: cmd } });
+  if (r.ok) {
+    showToast(`미션 "${label}" 추가됨`, 'ok');
+    document.getElementById('new-mission-id').value = '';
+    document.getElementById('new-mission-label').value = '';
+    document.getElementById('new-mission-cmd').value = '';
+    loadMissions();
+  }
+}
+
+async function deleteCustomMission(id, e) {
+  e.stopPropagation();
+  if (!confirm(`미션 "${id}"를 삭제할까요?`)) return;
+  const r = await api(`/api/missions/custom/${id}`, { method: 'DELETE' });
+  if (r.ok) { showToast('삭제됨', 'ok'); loadMissions(); }
+}
+
+/* ── RUN MISSION ─────────────────────────────────── */
+async function runMission(missionId, label) {
+  if (runningMission) { addLog(`⚠️ 실행 중: ${runningMission}`, 'warn'); return; }
+  runningMission = missionId;
+
+  // switch to terminal tab to see output
+  document.querySelectorAll('.tab-btn')[0].click();
+
+  addLog(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`, 'system');
+  addLog(`▶ MISSION: ${label || missionId}`, 'start');
+
+  try {
+    await api('/api/mission/run', { method: 'POST', body: { missionId } });
+  } catch {
+    addLog('❌ 미션 시작 실패', 'error');
+    runningMission = null;
   }
 
-  // ── WebSocket ────────────────────────────────────────
-  function connectWS() {
-    const wsUrl = `ws://${location.host}/ws?token=${token}`;
-    ws = new WebSocket(wsUrl);
-    const statusEl = document.getElementById('ws-status');
+  setTimeout(() => { if (runningMission === missionId) runningMission = null; }, 120000);
+}
 
-    ws.onopen = () => {
-      statusEl.textContent = 'LIVE';
-      statusEl.className = 'ws-status connected';
-    };
-    ws.onclose = () => {
-      statusEl.textContent = 'DISCONNECTED';
-      statusEl.className = 'ws-status';
-      setTimeout(connectWS, 3000);
-    };
-    ws.onerror = () => { statusEl.textContent = 'ERROR'; };
-    ws.onmessage = (e) => {
-      try {
-        const msg = JSON.parse(e.data);
-        const type = msg.type || 'log';
-        const lines = String(msg.data || '').split('\n');
-        lines.forEach(line => { if (line.trim()) addLog(line, type); });
+/* ── SHELL ───────────────────────────────────────── */
+async function runShell() {
+  const input = document.getElementById('shell-input');
+  const cmd = input.value.trim();
+  if (!cmd) return;
+  input.value = '';
 
-        if ((type === 'success' || type === 'error') && msg.missionId === runningMission) {
-          resetMissionUI(msg.missionId);
-        }
-      } catch {
-        addLog(e.data, 'log');
+  // Switch to terminal pane
+  document.querySelectorAll('.tab-btn')[0].click();
+
+  addLog(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`, 'system');
+  addLog(`$ ${cmd}`, 'start');
+
+  try {
+    const r = await api('/api/shell', { method: 'POST', body: { command: cmd } });
+    const d = await r.json();
+    if (d.dangerous) addLog(`⚠️ DANGEROUS COMMAND DETECTED — PROCEEDING WITH CAUTION`, 'warn');
+  } catch {
+    addLog('❌ 쉘 실행 실패', 'error');
+  }
+}
+
+async function loadShellHistory() {
+  try {
+    const r = await api('/api/shell/history');
+    const d = await r.json();
+    const log = document.getElementById('shell-log');
+    log.innerHTML = '';
+    if (!d.history?.length) {
+      log.innerHTML = '<div class="log-line"><span class="log-ts">--:--:--</span><span class="log-msg system">// No shell history yet</span></div>';
+      return;
+    }
+    d.history.slice(0, 30).forEach(h => {
+      const div = document.createElement('div');
+      div.className = 'log-line';
+      div.innerHTML = `<span class="log-ts">${h.timestamp?.slice(11,19)||'--:--:--'}</span><span class="log-msg ${h.dangerous?'warn':'start'}">$ ${escHtml(h.command)}</span>`;
+      log.appendChild(div);
+    });
+  } catch {}
+}
+
+function clearShellLog() { document.getElementById('shell-log').innerHTML = ''; }
+
+/* ── KILL SWITCH ─────────────────────────────────── */
+async function emergencyStop() {
+  if (!confirm('🛑 모든 AI 작업과 실행 중인 미션을 즉시 중단할까요?')) return;
+  const r = await api('/api/emergency-stop', { method: 'POST' });
+  if (r.ok) {
+    addLog('🛑 긴급 정지! 모든 작업이 중단되었습니다.', 'error');
+    runningMission = null;
+    showToast('긴급 정지 실행됨', 'err');
+  }
+}
+
+/* ── WEBSOCKET ───────────────────────────────────── */
+function connectWS() {
+  const wsUrl = `ws://${location.host}/ws?token=${token}`;
+  ws = new WebSocket(wsUrl);
+  const badge = document.getElementById('ws-badge');
+
+  ws.onopen = () => { badge.textContent = 'LIVE'; badge.className = 'ws-badge live'; };
+  ws.onclose = () => { badge.textContent = 'OFFLINE'; badge.className = 'ws-badge'; setTimeout(connectWS, 3000); };
+  ws.onerror = () => { badge.textContent = 'ERROR'; };
+
+  ws.onmessage = (e) => {
+    try {
+      const msg = JSON.parse(e.data);
+      const type = msg.type || 'log';
+      const lines = String(msg.data || '').split('\n');
+      lines.forEach(ln => { if (ln.trim()) addLog(ln, type); });
+
+      if (type === 'budget_exceeded') {
+        showToast('🛑 예산 초과! 작업이 중단됩니다.', 'err');
+        loadBudget();
       }
-    };
-  }
+      if (type === 'emergency_stop') { runningMission = null; loadAiAgents(); }
+      if ((type === 'success' || type === 'error') && msg.missionId === runningMission) {
+        runningMission = null;
+        loadStatus(); loadBudget(); loadAiAgents();
+      }
+    } catch { addLog(e.data, 'log'); }
+  };
+}
 
-  // ── 터미널 출력 ──────────────────────────────────────
-  function addLog(text, type = 'log') {
-    const terminal = document.getElementById('terminal');
-    const line = document.createElement('div');
-    line.className = 'log-line';
-    const now = new Date().toLocaleTimeString('ko-KR', { hour12: false });
-    let cls = 'log-text';
-    if (type === 'success' || String(text).includes('✅')) cls += ' success';
-    else if (type === 'error' || String(text).includes('❌')) cls += ' error';
-    else if (type === 'warn'  || String(text).includes('⚠️')) cls += ' warn';
-    else if (type === 'start' || type === 'system') cls += ' system';
-    line.innerHTML = `<span class="log-time">${now}</span><span class="${cls}">${escHtml(text)}</span>`;
-    terminal.appendChild(line);
-    terminal.scrollTop = terminal.scrollHeight;
+/* ── TERMINAL ────────────────────────────────────── */
+function addLog(text, type = 'log') {
+  const term = document.getElementById('terminal');
+  const div = document.createElement('div');
+  div.className = 'log-line';
+  const now = new Date().toLocaleTimeString('ko-KR', { hour12: false });
+  let cls = 'log-msg';
+  if      (type === 'success' || String(text).includes('✅')) cls += ' success';
+  else if (type === 'error'   || String(text).includes('❌')) cls += ' error';
+  else if (type === 'warn'    || String(text).includes('⚠️')) cls += ' warn';
+  else if (type === 'stderr')  cls += ' stderr';
+  else if (type === 'start')   cls += ' start';
+  else if (type === 'system' || type === 'connected' || type === 'history') cls += ' system';
+  else if (type === 'budget_exceeded') cls += ' budget';
+  div.innerHTML = `<span class="log-ts">${now}</span><span class="${cls}">${escHtml(text)}</span>`;
+  term.appendChild(div);
+  term.scrollTop = term.scrollHeight;
+  while (term.children.length > 600) term.removeChild(term.firstChild);
+}
 
-    while (terminal.children.length > 500) terminal.removeChild(terminal.firstChild);
-  }
+function clearTerminal() { document.getElementById('terminal').innerHTML = ''; addLog('// Cleared.', 'system'); }
 
-  function clearTerminal() {
-    document.getElementById('terminal').innerHTML = '';
-    addLog('// Terminal cleared', 'system');
-  }
+/* ── UTILS ───────────────────────────────────────── */
+function fmtUptime(ms) {
+  if (ms < 0) return '—';
+  const s = Math.floor(ms/1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s/60);
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m/60);
+  if (h < 24) return `${h}h`;
+  return `${Math.floor(h/24)}d`;
+}
 
-  function escHtml(str) {
-    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  }
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function showToast(msg, type = 'ok') {
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3000);
+}
 </script>
 </body>
 </html>
