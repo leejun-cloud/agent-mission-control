@@ -654,6 +654,24 @@ body::before {
   </div><!-- main-grid -->
 </div><!-- app -->
 
+<!-- DATALIST FOR AI MODELS -->
+<datalist id="model-list">
+  <option value="anthropic/claude-3.5-sonnet">
+  <option value="anthropic/claude-3.5-haiku">
+  <option value="anthropic/claude-3.6-opus">
+  <option value="openai/gpt-4o">
+  <option value="openai/o3-mini">
+  <option value="openai/gpt-5.4">
+  <option value="google/gemini-2.0-pro-exp-02-05">
+  <option value="google/gemini-2.0-flash">
+  <option value="google/gemini-3.1-pro">
+  <option value="google/gemini-3.1-flash">
+  <option value="deepseek/deepseek-chat">
+  <option value="deepseek/deepseek-reasoner">
+  <option value="moonshot/kimi-2.5">
+  <option value="qwen/qwen-2.5-coder-32b-instruct">
+</datalist>
+
 <script>
 /* ── STATE ─────────────────────────────────────────── */
 let token = localStorage.getItem('mc_token');
@@ -661,6 +679,7 @@ let ws = null;
 let runningMission = null;
 let currentTab = 'terminal';
 let aiAgents = [];
+let activeIntervals = [];
 
 /* ── INIT ────────────────────────────────────────────  */
 window.addEventListener('load', () => {
@@ -689,12 +708,23 @@ async function doLogin() {
 }
 
 function doLogout() {
+  const hadToken = !!token;
   localStorage.removeItem('mc_token');
   token = null;
-  if (ws) ws.close();
+  if (ws) { ws.close(); ws = null; }
+
+  // 배경 작업 중단
+  activeIntervals.forEach(id => clearInterval(id));
+  activeIntervals = [];
+
   document.getElementById('app').style.display = 'none';
   document.getElementById('login-screen').style.display = 'flex';
-  document.getElementById('pw').value = '';
+
+  // 실제 세션이 있는 상태에서 로그아웃된 경우에만 비번 초기화
+  // (입력 중 배경 작업의 401 에러로 인한 초기화 방지)
+  if (hadToken) {
+    document.getElementById('pw').value = '';
+  }
 }
 
 /* ── SHOW APP ─────────────────────────────────────── */
@@ -703,10 +733,15 @@ async function showApp() {
   document.getElementById('app').style.display = 'flex';
   connectWS();
   await Promise.all([loadStatus(), loadProjects(), loadPm2Agents(), loadAiAgents(), loadBudget(), loadMissions()]);
-  setInterval(loadStatus, 15000);
-  setInterval(loadPm2Agents, 10000);
-  setInterval(loadAiAgents, 8000);
-  setInterval(loadBudget, 20000);
+
+  // 기존 인터벌 정리 (중복 방지)
+  activeIntervals.forEach(id => clearInterval(id));
+  activeIntervals = [
+    setInterval(loadStatus, 15000),
+    setInterval(loadPm2Agents, 10000),
+    setInterval(loadAiAgents, 8000),
+    setInterval(loadBudget, 20000)
+  ];
 }
 
 /* ── API HELPER ──────────────────────────────────── */
@@ -717,7 +752,7 @@ async function api(path, opts = {}) {
     opts.headers['Content-Type'] = 'application/json';
   }
   const r = await fetch(path, opts);
-  if (r.status === 401) doLogout();
+  if (r.status === 401 && token) doLogout();
   return r;
 }
 
@@ -1054,8 +1089,8 @@ async function loadAgentConfig() {
       <div style="display:flex;align-items:center;gap:8px">
         <span style="font-size:12px;flex-shrink:0">${ROLE_ICONS[role]||'🤖'}</span>
         <span style="font-size:9px;font-weight:800;letter-spacing:1px;color:var(--muted2);font-family:var(--mono);width:80px;flex-shrink:0">${role.toUpperCase()}</span>
-        <input class="form-input" style="flex:1;padding:5px 10px;font-size:10px" value="${modelId}"
-          onblur="updateAgentModel('${role}', this.value)">
+        <input class="form-input" list="model-list" style="flex:1;padding:5px 10px;font-size:10px" value="${modelId}"
+          onblur="updateAgentModel('${role}', this.value)" placeholder="Custom Model ID...">
       </div>`).join('');
   } catch {}
 }
