@@ -41,7 +41,7 @@ if (fs.existsSync(projectsFile)) {
   try {
     const data = JSON.parse(fs.readFileSync(projectsFile, 'utf8'));
     projects = data.projects || [];
-    if (projects.length > 0) currentProject = projects[0];
+    if (projects.length > 0) currentProject = projects[projects.length - 1];
   } catch (e) {
     console.error('projects.json 파싱 오류:', e.message);
   }
@@ -550,6 +550,7 @@ const MODEL_PRIORITY = {
   'moonshot':    { label: 'Moonshot (Kimi)', emoji: '🌙', keys: ['moonshot/'] },
   'meta-llama':  { label: 'Meta Llama',      emoji: '🦙', keys: ['meta-llama/'] },
   'mistralai':   { label: 'Mistral',         emoji: '💨', keys: ['mistralai/'] },
+  'zhipu':       { label: 'Zhipu (GLM)',     emoji: '🐼', keys: ['zhipu/'] },
 };
 
 // 실시간 모델 목록 캐시
@@ -589,8 +590,8 @@ async function fetchAndCacheModels() {
           outputPrice: ((m.pricing?.completion || 0) * 1_000_000).toFixed(3),
           contextLength: m.context_length || 0,
         }))
-        .sort((a, b) => parseFloat(b.outputPrice) - parseFloat(a.outputPrice))
-        .slice(0, 5); // 상위 5개
+        .sort((a, b) => parseFloat(a.outputPrice) - parseFloat(b.outputPrice))
+        .slice(0, 5); // 상위 5개 (저렴한/대중적인 모델 우선)
 
       if (matching.length > 0) {
         grouped[groupKey] = { label: `${groupInfo.emoji} ${groupInfo.label}`, models: matching };
@@ -656,6 +657,11 @@ const FALLBACK_MODELS = {
       { id: 'moonshot/kimi-v1-5-32k',        name: 'Kimi v1.5 32K',     inputPrice: '0.150', outputPrice: '0.450' },
       { id: 'moonshot/kimi-v1-8k',           name: 'Kimi v1 8K',        inputPrice: '0.140', outputPrice: '0.590' },
       { id: 'moonshot/kimi-v1-128k',         name: 'Kimi v1 128K',      inputPrice: '0.500', outputPrice: '1.500' },
+    ]},
+    zhipu: { label: '🐼 Zhipu (GLM)', models: [
+      { id: 'zhipu/glm-4-flash',             name: 'GLM 4 Flash',       inputPrice: '0.000', outputPrice: '0.000' },
+      { id: 'zhipu/glm-4-plus',              name: 'GLM 4 Plus',        inputPrice: '0.700', outputPrice: '0.700' },
+      { id: 'zhipu/glm-5',                   name: 'GLM 5',             inputPrice: '1.000', outputPrice: '1.000' },
     ]},
   },
   totalModels: 0,
