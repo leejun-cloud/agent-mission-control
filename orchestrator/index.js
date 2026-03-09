@@ -150,7 +150,7 @@ async function run({ planPath, sessionNumber, projectRoot, broadcast, onAgentSta
       const prompt = buildWorkerPrompt(tasks, architectOutput, projectRoot);
 
       const result = await callAgent('worker', [
-        { role: 'system', content: '당신은 시니어 풀스택 개발자입니다. 주어진 태스크의 코드를 정확히 구현하세요. 응답은 반드시 JSON 형태: {"files": [{"path": "...", "content": "..."}]}' },
+        { role: 'system', content: '당신은 시니어 풀스택 개발자입니다. 주어진 태스크의 코드를 정확히 구현하세요. 파일 경로(path)는 슬래시(/)나 점(.)으로 시작하지 않는 순수 상대경로(예: "src/app/page.tsx")만 사용하세요. 응답은 반드시 순수 JSON 형태만 출력하세요: {"files": [{"path": "...", "content": "..."}]}' },
         { role: 'user', content: prompt },
       ], { temperature: 0.2, max_tokens: 8192 });
 
@@ -224,9 +224,11 @@ async function run({ planPath, sessionNumber, projectRoot, broadcast, onAgentSta
         writeResult = writer.writeAll(allWorkerFiles);
         if (writeResult.errors.length > 0) {
           log(`⚠️  ${writeResult.errors.length}개 파일 쓰기 오류: ${writeResult.errors.map(e => e.path).join(', ')}`, 'warn');
-        } else {
-          log(`✅ [FILE WRITER] ${writeResult.total}개 파일 적용 완료`, 'success');
         }
+        if (writeResult.skipped && writeResult.skipped.length > 0) {
+          log(`⚠️  ${writeResult.skipped.length}개 파일 쓰기 스킵(보안 차단 등): ${writeResult.skipped.map(s => s.path).join(', ')}`, 'warn');
+        }
+        log(`✅ [FILE WRITER] ${writeResult.total}개 파일 적용 완료`, 'success');
         checkpoint.markCompleted('file_writer');
         agentDone('integrator', 0);
       } else {
@@ -457,7 +459,7 @@ async function runDirect({ prompt, taskTitle, projectRoot, broadcast, onAgentSta
       ? `\n\n아키텍처 가이드:\n${JSON.stringify(architectOutput?.conventions || [], null, 2).slice(0, 600)}`
       : '';
     const workerResult = await callAgent('worker', [
-      { role: 'system', content: '당신은 시니어 풀스택 개발자입니다. 주어진 태스크의 코드를 완벽하게 구현하세요. JSON: {"files": [{"path": "...", "content": "..."}]}' },
+      { role: 'system', content: '당신은 시니어 풀스택 개발자입니다. 주어진 태스크의 코드를 완벽하게 구현하세요. 파일 경로(path)는 슬래시(/)나 점(.)으로 시작하지 않는 순수 상대경로(예: "src/app/page.tsx")만 사용하세요. 응답은 반드시 순수 JSON 형태만 출력하세요: {"files": [{"path": "...", "content": "..."}]}' },
       { role: 'user', content: `${workerContext}\n\n작업: ${prompt}\n\nJSON {"files": [{"path": "...", "content": "..."}]}로 응답` },
     ], { temperature: 0.2, max_tokens: 8192 });
     tracker.record({ model: process.env.AGENT_WORKER, role: 'worker', costUSD: workerResult.costUSD, tokens: workerResult.usage.total_tokens });

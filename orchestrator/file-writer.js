@@ -52,8 +52,11 @@ class FileWriter {
   _writeFile({ path: filePath, content }) {
     if (!filePath || content === undefined) return;
 
-    // 보안: 프로젝트 루트 밖으로 나가는 경로 차단
-    const absPath = path.resolve(this.projectRoot, filePath);
+    // 절대경로 기호 제거 (예: "/src/app.js" -> "src/app.js")
+    const safeRelPath = filePath.replace(/^[\/\\]+/, '');
+
+    // 보안: 프로젝트 루트 밖으로 나가는 경로(예: ../../) 차단
+    const absPath = path.resolve(this.projectRoot, safeRelPath);
     if (!absPath.startsWith(this.projectRoot)) {
       this.skipped.push({ path: filePath, reason: '경로 탈출 시도 차단' });
       return;
