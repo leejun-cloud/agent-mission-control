@@ -542,15 +542,13 @@ app.post('/api/agents/config', auth, (req, res) => {
 });
 
 const MODEL_PRIORITY = {
-  'openai':      { label: 'OpenAI',          emoji: '🤖', keys: ['openai/gpt-', 'openai/o1', 'openai/o3'] },
-  'anthropic':   { label: 'Anthropic',       emoji: '🧠', keys: ['anthropic/claude'] },
-  'google':      { label: 'Google',          emoji: '✨', keys: ['google/gemini'] },
-  'deepseek':    { label: 'DeepSeek',        emoji: '🔬', keys: ['deepseek/'] },
-  'qwen':        { label: 'Qwen (Alibaba)',  emoji: '🐉', keys: ['qwen/'] },
-  'moonshot':    { label: 'Moonshot (Kimi)', emoji: '🌙', keys: ['moonshot/'] },
-  'meta-llama':  { label: 'Meta Llama',      emoji: '🦙', keys: ['meta-llama/'] },
-  'mistralai':   { label: 'Mistral',         emoji: '💨', keys: ['mistralai/'] },
-  'zhipu':       { label: 'Zhipu (GLM)',     emoji: '🐼', keys: ['zhipu/'] },
+  'openai':      { label: 'OpenAI',          emoji: '🤖', preferred: ['openai/gpt-4o', 'openai/gpt-4o-mini', 'openai/o3-mini', 'openai/o1'] },
+  'anthropic':   { label: 'Anthropic',       emoji: '🧠', preferred: ['anthropic/claude-3.7-sonnet', 'anthropic/claude-3.5-haiku', 'anthropic/claude-3-opus'] },
+  'google':      { label: 'Google',          emoji: '✨', preferred: ['google/gemini-2.5-pro', 'google/gemini-2.5-flash', 'google/gemini-2.0-flash-001'] },
+  'deepseek':    { label: 'DeepSeek',        emoji: '🔬', preferred: ['deepseek/deepseek-chat', 'deepseek/deepseek-r1'] },
+  'qwen':        { label: 'Qwen (Alibaba)',  emoji: '🐉', preferred: ['qwen/qwen-max', 'qwen/qwq-32b', 'qwen/qwen-2.5-coder-32b-instruct', 'qwen/qwen-plus'] },
+  'moonshot':    { label: 'Moonshot (Kimi)', emoji: '🌙', preferred: ['moonshot/kimi-v1-128k', 'moonshot/kimi-v1-32k', 'moonshot/kimi-v1-8k'] },
+  'zhipu':       { label: 'Zhipu (GLM)',     emoji: '🐼', preferred: ['zhipu/glm-5', 'zhipu/glm-4-plus', 'zhipu/glm-4-flash'] },
 };
 
 // 실시간 모델 목록 캐시
@@ -581,17 +579,24 @@ async function fetchAndCacheModels() {
     const allModels = data.data || [];
     const grouped = {};
     for (const [groupKey, groupInfo] of Object.entries(MODEL_PRIORITY)) {
-      const matching = allModels
-        .filter(m => groupInfo.keys.some(k => m.id.startsWith(k)))
+      // Create a specific matching array based purely on preferred list ordering
+      const matched = [];
+      for (const pref of groupInfo.preferred) {
+        // Find exact or 'startswith' (to cover previews/betas if exactly named) within allModels
+        const found = allModels.find(m => m.id === pref || m.id === `${pref}:free` || m.id.startsWith(pref));
+        if (found && !matched.some(m => m.id === found.id)) {
+          matched.push(found);
+        }
+      }
+      
+      const matching = matched
         .map(m => ({
           id: m.id,
           name: m.name,
           inputPrice:  ((m.pricing?.prompt  || 0) * 1_000_000).toFixed(3),
           outputPrice: ((m.pricing?.completion || 0) * 1_000_000).toFixed(3),
           contextLength: m.context_length || 0,
-        }))
-        .sort((a, b) => parseFloat(a.outputPrice) - parseFloat(b.outputPrice))
-        .slice(0, 5); // 상위 5개 (저렴한/대중적인 모델 우선)
+        }));
 
       if (matching.length > 0) {
         grouped[groupKey] = { label: `${groupInfo.emoji} ${groupInfo.label}`, models: matching };
