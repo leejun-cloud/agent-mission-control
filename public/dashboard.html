@@ -1222,40 +1222,142 @@ async function loadDynamicModels() {
   }
 }
 
-let lastFocusedModelInput = null;
-function applyModelToInput(modelId) {
-  if (lastFocusedModelInput) {
-    lastFocusedModelInput.value = modelId;
-    const role = lastFocusedModelInput.dataset.role;
-    if (role) updateAgentModel(role, modelId);
-  } else {
-    navigator.clipboard.writeText(modelId).then(() => showToast(`복사됨: ${modelId}`, 'ok'));
-  }
+// \uc2e4\uc2dc\uac04 \ubaa8\ub378 \ubaa9\ub85d \uce90\uc2dc (dashboard)
+let liveModelData = null;
+
+async function ensureLiveModels() {
+  if (liveModelData) return liveModelData;
+  try {
+    const r = await api('/api/models');
+    if (r.ok) liveModelData = await r.json();
+  } catch {}
+  return liveModelData;
 }
 
+// \uc2e4\uc2dc\uac04 \ubaa8\ub378\ub85c \ubaa8\ub4e0 select \ubcf4\ud654
+async function populateModelSelects() {
+  const data = await ensureLiveModels();
+  if (!data?.grouped) return;
+
+  document.querySelectorAll('select.agent-model-select').forEach(sel => {
+    const currentVal = sel.value;
+    // \uae30\uc874 \uc635\uc158\uadf8\ub8f9 \ubaa8\ub450 \uc81c\uac70 (\ucee4\uc2a4\ud140 \uc785\ub825 \uc81c\uc678)
+    [...sel.querySelectorAll('optgroup')].forEach(g => g.remove());
+
+    for (const [, group] of Object.entries(data.grouped)) {
+      const og = document.createElement('optgroup');
+      og.label = group.label;
+      group.models.forEach(m => {
+        const o = document.createElement('option');
+        o.value = m.id;
+        o.textContent = `${m.name}  (in:$${m.inputPrice} out:$${m.outputPrice}/1M)`;
+        og.appendChild(o);
+      });
+      sel.appendChild(og);
+    }
+    // \uc774\uc804 \uac12 \ubcf5\uc6d0
+    if (currentVal) sel.value = currentVal;
+  });
+}
 
 async function loadAgentConfig() {
   try {
-    const r = await api('/api/agents/config');
-    if (!r.ok) return;
-    const d = await r.json();
+    const [cfgR, modelData] = await Promise.all([
+      api('/api/agents/config'),
+      ensureLiveModels(),
+    ]);
+    if (!cfgR.ok) return;
+    const d = await cfgR.json();
     const list = document.getElementById('agent-config-list');
-    const ROLE_ICONS = { architect:'🏗', orchestrator:'🎯', worker:'⚡', designer:'🎨', reviewer:'🔍', integrator:'🤝' };
+    const ROLE_ICONS = { architect:'\ud83c\udfd7', orchestrator:'\ud83c\udfaf', worker:'\u26a1', designer:'\ud83c\udfa8', reviewer:'\ud83d\udd0d', integrator:'\ud83e\udd1d' };
+
+    // grouped optgroup HTML \uc0dd\uc131
+    const buildOptions = (currentId) => {
+      if (!modelData?.grouped) {
+        return `<option value="${currentId}">${currentId}</option>`;
+      }
+      const opts = [`<option value="${currentId}" selected>${currentId} \u2714\ufe0f (\ud604\uc7ac)</option>`];
+      for (const [, group] of Object.entries(modelData.grouped)) {
+        const groupOpts = group.models.map(m =>
+          `<option value="${m.id}"${m.id === currentId ? ' selected' : ''}>${m.name} — in:$${m.inputPrice} out:$${m.outputPrice}/1M</option>`
+        ).join('');
+        opts.push(`<optgroup label="${group.label}">${groupOpts}</optgroup>`);
+      }
+      return opts.join('');
+    };
 
     list.innerHTML = Object.entries(d.config).map(([role, modelId]) => `
-      <div style="display:flex;align-items:center;gap:8px">
-        <span style="font-size:12px;flex-shrink:0">${ROLE_ICONS[role]||'🤖'}</span>
-        <span style="font-size:9px;font-weight:800;letter-spacing:1px;color:var(--muted2);font-family:var(--mono);width:80px;flex-shrink:0">${role.toUpperCase()}</span>
-        <input class="form-input" list="model-list" style="flex:1;padding:5px 10px;font-size:10px" value="${modelId}"
-          onblur="updateAgentModel('${role}', this.value)" placeholder="Custom Model ID...">
+      <div style="display:flex;align-items:center;gap:8px;padding:4px 0">
+        <span style="font-size:13px;flex-shrink:0">${ROLE_ICONS[role]||'\ud83e\udd16'}</span>
+        <span style="font-size:10px;font-weight:800;letter-spacing:1px;color:var(--muted2);font-family:var(--mono);width:88px;flex-shrink:0">${role.toUpperCase()}</span>
+        <select class="form-input agent-model-select" data-role="${role}"
+          style="flex:1;padding:5px 10px;font-size:11px;cursor:pointer;background:var(--surface1)"
+          onchange="updateAgentModel('${role}', this.value)">
+          ${buildOptions(modelId)}
+        </select>
       </div>`).join('');
-  } catch {}
+
+    if (modelData?.cachedAt) {
+      list.insertAdjacentHTML('afterend', `<div style="font-size:9px;color:var(--muted2);margin-top:6px;font-family:var(--mono)">
+        \u23f1 \uba85\uc2dc\uc801 \ubaa8\ub378 ${modelData.fallback ? '\u26a0\ufe0f \ud3f4\ubc31' : `${modelData.totalModels}\uac1c`} \u00b7 ${new Date(modelData.cachedAt).toLocaleTimeString('ko-KR')} \uae30\uc900
+        <span style="cursor:pointer;color:var(--accent);margin-left:8px" onclick="refreshModels()">\ud83d\udd04 \uc9c1\uc811 \ubaa8\ub378 \uc778\ub85c\ub4dc</span>
+      </div>`);
+    }
+  } catch (e) { console.warn('loadAgentConfig err', e); }
+}
+
+async function refreshModels() {
+  liveModelData = null;
+  try {
+    const r = await api('/api/models?refresh=1');
+    if (r.ok) liveModelData = await r.json();
+    showToast(`\u2705 \ubaa8\ub378 \ubaa9\ub85d \uac31\uc2e0 (${liveModelData?.totalModels || 0}\uac1c)`, 'ok');
+    loadAgentConfig();
+  } catch { showToast('\ubaa8\ub378 \uc870\ud68c \uc2e4\ud328', 'err'); }
 }
 
 async function updateAgentModel(role, modelId) {
   if (!modelId.trim()) return;
   const r = await api('/api/agents/config', { method: 'POST', body: { role, modelId: modelId.trim() } });
-  if (r.ok) showToast(`${role} → ${modelId}`, 'ok');
+  if (r.ok) showToast(`${role} \u2192 ${modelId.split('/')[1] || modelId}`, 'ok');
+}
+
+// \uc88c\uce21 \ud328\ub110 AI \uc5d0\uc774\uc804\ud2b8 \uce74\ub4dc \ud074\ub9ad \\uc2dc \ubaa8\ub2ec \ud32c\uc624\ubc84
+let agentPickerForRole = null;
+async function openAgentPicker(role, anchorEl) {
+  agentPickerForRole = role;
+  const modal = document.getElementById('agent-picker-modal');
+  const content = document.getElementById('agent-picker-content');
+  const title = document.getElementById('agent-picker-title');
+  const ICONS = { architect:'\ud83c\udfd7', orchestrator:'\ud83c\udfaf', worker:'\u26a1', designer:'\ud83c\udfa8', reviewer:'\ud83d\udd0d', integrator:'\ud83e\udd1d' };
+  title.textContent = `${ICONS[role]||'\ud83e\udd16'} ${role.toUpperCase()} \uc5d0\uc774\uc804\ud2b8 \ubaa8\ub378 \uc120\ud0dd`;1
+  content.innerHTML = '<div style="color:var(--muted2);font-size:11px;text-align:center;padding:20px">\ub85c\ub529 \uc911...</div>';
+  modal.style.display = 'flex';
+
+  const data = await ensureLiveModels();
+  if (!data?.grouped) {
+    content.innerHTML = '<div style="color:var(--warn)">API \uc624\ub958 \u2014 \ud3f4\ubc31 \ubaa9\ub85d\uc5c6\uc74c</div>';
+    return;
+  }
+
+  content.innerHTML = Object.entries(data.grouped).map(([, group]) => `
+    <div style="margin-bottom:10px">
+      <div style="font-size:9px;font-weight:800;color:var(--muted2);letter-spacing:1px;font-family:var(--mono);padding:4px 0">${group.label}</div>
+      ${group.models.map(m => `
+        <div onclick="pickModel('${m.id}')" style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:6px;cursor:pointer;border:1px solid var(--border);margin-bottom:4px;transition:background 0.15s" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+          <span style="flex:1;font-family:var(--mono);font-size:12px;color:var(--text)">${m.name}</span>
+          <span style="font-size:10px;color:var(--success);font-family:var(--mono)">in $${m.inputPrice}</span>
+          <span style="font-size:10px;color:var(--warn);font-family:var(--mono)">out $${m.outputPrice}</span>
+          <span style="font-size:9px;color:var(--muted2)">/1M</span>
+        </div>`).join('')}
+    </div>`).join('');
+}
+
+async function pickModel(modelId) {
+  if (!agentPickerForRole) return;
+  document.getElementById('agent-picker-modal').style.display = 'none';
+  await updateAgentModel(agentPickerForRole, modelId);
+  loadAgentConfig(); // 새 모델 반영하여 다시 그리기
 }
 
 /* ── RUN MISSION ─────────────────────────────────── */

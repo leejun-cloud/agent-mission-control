@@ -498,54 +498,43 @@ app.post('/api/agents/config', auth, (req, res) => {
   res.json({ ok: true, config: getAgentConfig() });
 });
 
-// ── API: OpenRouter 모델 목록 실시간 조회 (v4.0) ────────
 const MODEL_PRIORITY = {
-  'openai':      { label: 'OpenAI', emoji: '🤖', keys: ['openai/gpt-', 'openai/o'] },
-  'anthropic':   { label: 'Anthropic', emoji: '🧠', keys: ['anthropic/claude'] },
-  'google':      { label: 'Google', emoji: '✨', keys: ['google/gemini'] },
-  'qwen':        { label: 'Qwen (Alibaba)', emoji: '🐉', keys: ['qwen/'] },
+  'openai':      { label: 'OpenAI',          emoji: '🤖', keys: ['openai/gpt-', 'openai/o1', 'openai/o3'] },
+  'anthropic':   { label: 'Anthropic',       emoji: '🧠', keys: ['anthropic/claude'] },
+  'google':      { label: 'Google',          emoji: '✨', keys: ['google/gemini'] },
+  'deepseek':    { label: 'DeepSeek',        emoji: '🔬', keys: ['deepseek/'] },
+  'qwen':        { label: 'Qwen (Alibaba)',  emoji: '🐉', keys: ['qwen/'] },
   'moonshot':    { label: 'Moonshot (Kimi)', emoji: '🌙', keys: ['moonshot/'] },
-  'deepseek':    { label: 'DeepSeek', emoji: '🔬', keys: ['deepseek/'] },
-  'meta-llama':  { label: 'Meta Llama', emoji: '🦙', keys: ['meta-llama/'] },
-  'mistralai':   { label: 'Mistral', emoji: '💨', keys: ['mistralai/'] },
+  'meta-llama':  { label: 'Meta Llama',      emoji: '🦙', keys: ['meta-llama/'] },
+  'mistralai':   { label: 'Mistral',         emoji: '💨', keys: ['mistralai/'] },
 };
 
+// 실시간 모델 목록 캐시
 let cachedModels = null;
 let cacheTime = 0;
-const CACHE_TTL = 5 * 60 * 1000; // 5분 캐시
+const CACHE_TTL = 5 * 60 * 1000; // 5분
 
-app.get('/api/models', auth, async (req, res) => {
-  const now = Date.now();
-  if (cachedModels && (now - cacheTime < CACHE_TTL)) {
-    return res.json(cachedModels);
-  }
-
+async function fetchAndCacheModels() {
   try {
     const apiKey = process.env.OPENROUTER_API_KEY;
+    if (!apiKey) return null;
     const data = await new Promise((resolve, reject) => {
       const options = {
         hostname: 'openrouter.ai',
         path: '/api/v1/models',
         method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
       };
       const reqH = https.request(options, (resp) => {
         let body = '';
         resp.on('data', chunk => body += chunk);
-        resp.on('end', () => {
-          try { resolve(JSON.parse(body)); } catch(e) { reject(e); }
-        });
+        resp.on('end', () => { try { resolve(JSON.parse(body)); } catch(e) { reject(e); } });
       });
       reqH.on('error', reject);
       reqH.end();
     });
 
     const allModels = data.data || [];
-
-    // 회사별 그룹화, 각 3개 상위 모델 추출
     const grouped = {};
     for (const [groupKey, groupInfo] of Object.entries(MODEL_PRIORITY)) {
       const matching = allModels
@@ -553,65 +542,92 @@ app.get('/api/models', auth, async (req, res) => {
         .map(m => ({
           id: m.id,
           name: m.name,
-          inputPrice:  ((m.pricing?.prompt  || 0) * 1_000_000).toFixed(2),
-          outputPrice: ((m.pricing?.completion || 0) * 1_000_000).toFixed(2),
+          inputPrice:  ((m.pricing?.prompt  || 0) * 1_000_000).toFixed(3),
+          outputPrice: ((m.pricing?.completion || 0) * 1_000_000).toFixed(3),
           contextLength: m.context_length || 0,
         }))
         .sort((a, b) => parseFloat(b.outputPrice) - parseFloat(a.outputPrice))
-        .slice(0, 3);
+        .slice(0, 5); // 상위 5개
 
       if (matching.length > 0) {
-        grouped[groupKey] = {
-          label: `${groupInfo.emoji} ${groupInfo.label}`,
-          models: matching,
-        };
+        grouped[groupKey] = { label: `${groupInfo.emoji} ${groupInfo.label}`, models: matching };
       }
     }
 
     cachedModels = { grouped, totalModels: allModels.length, cachedAt: new Date().toISOString() };
-    cacheTime = now;
-    res.json(cachedModels);
+    cacheTime = Date.now();
+    console.log(`[models] ✅ OpenRouter 모델 캐시 갱신 — 총 ${allModels.length}개`);
+    return cachedModels;
   } catch (err) {
-    console.error('[/api/models] 오류:', err.message);
-    // 폴백: 하드코딩된 모델 반환
-    res.json({
-      grouped: {
-        openai: { label: '🤖 OpenAI', models: [
-          { id: 'openai/gpt-4o', name: 'GPT-4o', inputPrice: '2.50', outputPrice: '10.00' },
-          { id: 'openai/gpt-4o-mini', name: 'GPT-4o mini', inputPrice: '0.15', outputPrice: '0.60' },
-          { id: 'openai/o3-mini', name: 'o3 mini', inputPrice: '1.10', outputPrice: '4.40' },
-        ]},
-        anthropic: { label: '🧠 Anthropic', models: [
-          { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet', inputPrice: '3.00', outputPrice: '15.00' },
-          { id: 'anthropic/claude-3-haiku', name: 'Claude 3 Haiku', inputPrice: '0.25', outputPrice: '1.25' },
-          { id: 'anthropic/claude-3-opus', name: 'Claude 3 Opus', inputPrice: '15.00', outputPrice: '75.00' },
-        ]},
-        google: { label: '✨ Google', models: [
-          { id: 'google/gemini-2.5-pro', name: 'Gemini 2.5 Pro', inputPrice: '1.25', outputPrice: '5.00' },
-          { id: 'google/gemini-2.0-flash', name: 'Gemini 2.0 Flash', inputPrice: '0.10', outputPrice: '0.40' },
-          { id: 'google/gemini-flash-1.5', name: 'Gemini 1.5 Flash', inputPrice: '0.08', outputPrice: '0.30' },
-        ]},
-        qwen: { label: '🐉 Qwen', models: [
-          { id: 'qwen/qwen-2.5-coder-32b-instruct', name: 'Qwen2.5 Coder 32B', inputPrice: '0.10', outputPrice: '0.30' },
-          { id: 'qwen/qwen-2.5-72b-instruct', name: 'Qwen2.5 72B', inputPrice: '0.13', outputPrice: '0.40' },
-          { id: 'qwen/qwen-max', name: 'Qwen Max', inputPrice: '1.60', outputPrice: '6.40' },
-        ]},
-        moonshot: { label: '🌙 Moonshot', models: [
-          { id: 'moonshot/kimi-v1-8k', name: 'Kimi v1 8K', inputPrice: '0.14', outputPrice: '0.59' },
-          { id: 'moonshot/kimi-v1-32k', name: 'Kimi v1 32K', inputPrice: '0.25', outputPrice: '0.80' },
-          { id: 'moonshot/kimi-v1-128k', name: 'Kimi v1 128K', inputPrice: '0.50', outputPrice: '1.50' },
-        ]},
-        deepseek: { label: '🔬 DeepSeek', models: [
-          { id: 'deepseek/deepseek-chat', name: 'DeepSeek Chat', inputPrice: '0.01', outputPrice: '0.03' },
-          { id: 'deepseek/deepseek-reasoner', name: 'DeepSeek Reasoner', inputPrice: '0.14', outputPrice: '0.55' },
-          { id: 'deepseek/deepseek-coder', name: 'DeepSeek Coder', inputPrice: '0.01', outputPrice: '0.03' },
-        ]},
-      },
-      totalModels: 0,
-      cachedAt: new Date().toISOString(),
-      fallback: true,
-    });
+    console.warn('[models] ⚠️ OpenRouter 조회 실패, 폴백 사용:', err.message);
+    return null;
   }
+}
+
+// 서버 시작 시 즉시 모델 캐시 프리워밍
+setTimeout(fetchAndCacheModels, 3000);
+// 5분마다 갱신
+setInterval(fetchAndCacheModels, CACHE_TTL);
+
+// 폴백 모델 목록 (실제 유효한 OpenRouter ID 사용)
+const FALLBACK_MODELS = {
+  grouped: {
+    openai: { label: '🤖 OpenAI', models: [
+      { id: 'openai/gpt-4o',              name: 'GPT-4o',          inputPrice: '2.500', outputPrice: '10.000' },
+      { id: 'openai/gpt-4o-mini',         name: 'GPT-4o mini',     inputPrice: '0.150', outputPrice: '0.600' },
+      { id: 'openai/o3-mini',             name: 'o3 mini',         inputPrice: '1.100', outputPrice: '4.400' },
+      { id: 'openai/o1',                  name: 'o1',              inputPrice: '15.000', outputPrice: '60.000' },
+      { id: 'openai/gpt-4.1',             name: 'GPT-4.1',         inputPrice: '2.000', outputPrice: '8.000' },
+    ]},
+    anthropic: { label: '🧠 Anthropic', models: [
+      { id: 'anthropic/claude-opus-4',       name: 'Claude Opus 4',     inputPrice: '15.000', outputPrice: '75.000' },
+      { id: 'anthropic/claude-sonnet-4',     name: 'Claude Sonnet 4',   inputPrice: '3.000', outputPrice: '15.000' },
+      { id: 'anthropic/claude-3.5-haiku',    name: 'Claude 3.5 Haiku',  inputPrice: '0.800', outputPrice: '4.000' },
+      { id: 'anthropic/claude-3.5-sonnet',   name: 'Claude 3.5 Sonnet', inputPrice: '3.000', outputPrice: '15.000' },
+      { id: 'anthropic/claude-3.7-sonnet',   name: 'Claude 3.7 Sonnet', inputPrice: '3.000', outputPrice: '15.000' },
+    ]},
+    google: { label: '✨ Google', models: [
+      { id: 'google/gemini-2.5-pro-preview', name: 'Gemini 2.5 Pro Preview', inputPrice: '1.250', outputPrice: '10.000' },
+      { id: 'google/gemini-2.0-flash-001',   name: 'Gemini 2.0 Flash',       inputPrice: '0.100', outputPrice: '0.400' },
+      { id: 'google/gemini-2.5-flash-preview', name: 'Gemini 2.5 Flash',     inputPrice: '0.150', outputPrice: '0.600' },
+      { id: 'google/gemini-pro-1.5',          name: 'Gemini 1.5 Pro',        inputPrice: '1.250', outputPrice: '5.000' },
+      { id: 'google/gemini-flash-1.5',        name: 'Gemini 1.5 Flash',      inputPrice: '0.075', outputPrice: '0.300' },
+    ]},
+    deepseek: { label: '🔬 DeepSeek', models: [
+      { id: 'deepseek/deepseek-r1',          name: 'DeepSeek R1',       inputPrice: '0.550', outputPrice: '2.190' },
+      { id: 'deepseek/deepseek-chat',        name: 'DeepSeek V3',       inputPrice: '0.270', outputPrice: '1.100' },
+      { id: 'deepseek/deepseek-r1-zero',     name: 'DeepSeek R1 Zero',  inputPrice: '0.550', outputPrice: '2.190' },
+      { id: 'deepseek/deepseek-prover-v2',   name: 'DeepSeek Prover V2', inputPrice: '0.550', outputPrice: '2.190' },
+      { id: 'deepseek/deepseek-r1-distill-qwen-32b', name: 'R1 Distill Qwen 32B', inputPrice: '0.120', outputPrice: '0.180' },
+    ]},
+    qwen: { label: '🐉 Qwen', models: [
+      { id: 'qwen/qwen3-235b-a22b',          name: 'Qwen3 235B A22B',    inputPrice: '0.140', outputPrice: '0.600' },
+      { id: 'qwen/qwq-32b',                  name: 'QwQ 32B',           inputPrice: '0.100', outputPrice: '0.400' },
+      { id: 'qwen/qwen-2.5-coder-32b-instruct', name: 'Qwen2.5 Coder 32B', inputPrice: '0.070', outputPrice: '0.160' },
+      { id: 'qwen/qwen-max',                 name: 'Qwen Max',          inputPrice: '1.600', outputPrice: '6.400' },
+      { id: 'qwen/qwen-2.5-72b-instruct',    name: 'Qwen2.5 72B',       inputPrice: '0.130', outputPrice: '0.400' },
+    ]},
+    moonshot: { label: '🌙 Moonshot (Kimi)', models: [
+      { id: 'moonshot/kimi-k2',              name: 'Kimi K2',           inputPrice: '0.600', outputPrice: '2.500' },
+      { id: 'moonshot/kimi-v1-5-8k',         name: 'Kimi v1.5 8K',      inputPrice: '0.100', outputPrice: '0.300' },
+      { id: 'moonshot/kimi-v1-5-32k',        name: 'Kimi v1.5 32K',     inputPrice: '0.150', outputPrice: '0.450' },
+      { id: 'moonshot/kimi-v1-8k',           name: 'Kimi v1 8K',        inputPrice: '0.140', outputPrice: '0.590' },
+      { id: 'moonshot/kimi-v1-128k',         name: 'Kimi v1 128K',      inputPrice: '0.500', outputPrice: '1.500' },
+    ]},
+  },
+  totalModels: 0,
+  cachedAt: new Date().toISOString(),
+  fallback: true,
+};
+
+app.get('/api/models', auth, async (req, res) => {
+  const forceRefresh = req.query.refresh === '1';
+  const now = Date.now();
+  if (!forceRefresh && cachedModels && (now - cacheTime < CACHE_TTL)) {
+    return res.json(cachedModels);
+  }
+  const result = await fetchAndCacheModels();
+  res.json(result || FALLBACK_MODELS);
 });
 
 // ── API: 오케스트레이터 실행 (v4.0 — 다중 세션 지원) ────
