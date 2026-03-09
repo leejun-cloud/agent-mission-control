@@ -20,7 +20,7 @@ const jwt        = require('jsonwebtoken');
 const path       = require('path');
 const fs         = require('fs');
 const https      = require('https');
-const { spawn, execFile, exec } = require('child_process');
+const { spawn, execFile, exec, execSync } = require('child_process');
 
 const app    = express();
 const server = http.createServer(app);
@@ -176,6 +176,49 @@ app.post('/api/projects/switch', auth, (req, res) => {
   currentProject = project;
   console.log(`[프로젝트 전환] ${project.label} → ${project.root}`);
   res.json({ ok: true, current: currentProject });
+});
+
+app.post('/api/projects/import', auth, (req, res) => {
+  const { url } = req.body;
+  if (!url || typeof url !== 'string') return res.status(400).json({ error: 'url 필수' });
+
+  try {
+    const rawUrl = url.trim();
+    const repoMatch = rawUrl.match(/\/([^\/]+)(?:\.git)?$/);
+    if (!repoMatch) return res.status(400).json({ error: '유효하지 않은 GitHub URL입니다.' });
+
+    const repoName = repoMatch[1].replace('.git', '');
+    const parentDir = path.dirname(DEFAULT_ROOT); // Workspace 기본 디렉토리
+    const targetDir = path.join(parentDir, repoName);
+
+    if (fs.existsSync(targetDir)) {
+      return res.status(409).json({ error: `디렉토리가 이미 존재합니다: ${targetDir}` });
+    }
+
+    // Git Clone 실행
+    console.log(`[프로젝트 가져오기] git clone ${rawUrl} -> ${targetDir}`);
+    execSync(`git clone ${rawUrl} "${targetDir}"`, { stdio: 'inherit' });
+
+    // 새 프로젝트 등록
+    const newProject = {
+      id: repoName.toLowerCase(),
+      label: repoName,
+      root: targetDir
+    };
+
+    // 중복 ID 방지 (만약 같은 이름 저장소를 또 임포트 시도할 경우, 이미 위에서 차단됨)
+    projects.push(newProject);
+    fs.writeFileSync(projectsFile, JSON.stringify({ projects }, null, 2), 'utf8');
+
+    // 새로 임포트한 프로젝트로 바로 전환
+    currentProject = newProject;
+    console.log(`[프로젝트 가져오기 완료] ${newProject.label} 자동 전환됨`);
+
+    res.json({ ok: true, project: newProject });
+  } catch (err) {
+    console.error('[프로젝트 가져오기 오류]', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ── API: pm2 에이전트 상태 ────────────────────────────

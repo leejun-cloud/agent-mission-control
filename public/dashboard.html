@@ -154,6 +154,28 @@ body::before {
 .logout-btn:hover { border-color: var(--error); color: var(--error); }
 
 /* ── MAIN GRID ── */
+.proj-add-btn {
+  background: transparent;
+  color: var(--muted2);
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  cursor: pointer;
+  margin-left: 6px;
+  transition: all 0.2s;
+  vertical-align: middle;
+}
+.proj-add-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(99,102,241,0.1);
+}
+
 .main-grid {
   display: grid;
   grid-template-columns: 340px 1fr;
@@ -443,6 +465,7 @@ body::before {
       <select class="proj-select" id="proj-sel" onchange="switchProject(this.value)">
         <option>로딩 중...</option>
       </select>
+      <button class="proj-add-btn" onclick="importGitHubProject()" title="GitHub 저장소 가져오기">＋</button>
     </div>
 
     <div class="hdr-right">
