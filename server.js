@@ -1,13 +1,12 @@
 /**
- * Agent Mission Control Server (v3.0)
+ * Agent Mission Control Server (v4.0)
  * 자율형 AI 오케스트라 플랫폼 — 독립 프로젝트
  *
- * v2.1 → v3.0 변경사항:
- *   - 임의 쉘 명령 실행 (/api/shell)
- *   - 사용자 정의 미션 등록/삭제 (/api/missions/custom)
- *   - 오케스트레이터 실행 API (/api/orchestrate)
- *   - 비용 추적 API (/api/cost)
- *   - AI 에이전트 상태 API (/api/agents/ai)
+ * v3.0 → v4.0 변경사항:
+ *   - 실시간 OpenRouter 모델 목록 조회 (회사별 그룹화, 가격 포함) (/api/models)
+ *   - 다중 세션 동시 오케스트레이션 (/api/orchestrate — sessions[] 배열 지원)
+ *   - 직접 프롬프트 실행 (plan.md 없이 명령만으로) (/api/orchestrate/direct)
+ *   - 교육용 코드 리뷰 에이전트 (detailed_review)
  *
  * 실행: node server.js
  * 접속: http://YOUR_SERVER_IP:4000
@@ -20,6 +19,7 @@ const WebSocket  = require('ws');
 const jwt        = require('jsonwebtoken');
 const path       = require('path');
 const fs         = require('fs');
+const https      = require('https');
 const { spawn, execFile, exec } = require('child_process');
 
 const app    = express();
@@ -112,7 +112,7 @@ function getAgentConfig() {
   return {
     architect:    process.env.AGENT_ARCHITECT || 'openai/o3-mini',
     orchestrator: process.env.AGENT_ORCHESTRATOR || 'anthropic/claude-3.5-sonnet',
-    worker:       process.env.AGENT_WORKER || 'moonshot/kimi-2.5',
+    worker:       process.env.AGENT_WORKER || 'moonshot/kimi-v1-8k',
     designer:     process.env.AGENT_DESIGNER || 'google/gemini-2.5-pro',
     reviewer:     process.env.AGENT_REVIEWER || 'qwen/qwen-2.5-coder-32b-instruct',
     integrator:   process.env.AGENT_INTEGRATOR || 'anthropic/claude-3.5-sonnet',
@@ -498,12 +498,135 @@ app.post('/api/agents/config', auth, (req, res) => {
   res.json({ ok: true, config: getAgentConfig() });
 });
 
-// ── API: 오케스트레이터 실행 ───────────────────────────
+// ── API: OpenRouter 모델 목록 실시간 조회 (v4.0) ────────
+const MODEL_PRIORITY = {
+  'openai':      { label: 'OpenAI', emoji: '🤖', keys: ['openai/gpt-', 'openai/o'] },
+  'anthropic':   { label: 'Anthropic', emoji: '🧠', keys: ['anthropic/claude'] },
+  'google':      { label: 'Google', emoji: '✨', keys: ['google/gemini'] },
+  'qwen':        { label: 'Qwen (Alibaba)', emoji: '🐉', keys: ['qwen/'] },
+  'moonshot':    { label: 'Moonshot (Kimi)', emoji: '🌙', keys: ['moonshot/'] },
+  'deepseek':    { label: 'DeepSeek', emoji: '🔬', keys: ['deepseek/'] },
+  'meta-llama':  { label: 'Meta Llama', emoji: '🦙', keys: ['meta-llama/'] },
+  'mistralai':   { label: 'Mistral', emoji: '💨', keys: ['mistralai/'] },
+};
+
+let cachedModels = null;
+let cacheTime = 0;
+const CACHE_TTL = 5 * 60 * 1000; // 5분 캐시
+
+app.get('/api/models', auth, async (req, res) => {
+  const now = Date.now();
+  if (cachedModels && (now - cacheTime < CACHE_TTL)) {
+    return res.json(cachedModels);
+  }
+
+  try {
+    const apiKey = process.env.OPENROUTER_API_KEY;
+    const data = await new Promise((resolve, reject) => {
+      const options = {
+        hostname: 'openrouter.ai',
+        path: '/api/v1/models',
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+      };
+      const reqH = https.request(options, (resp) => {
+        let body = '';
+        resp.on('data', chunk => body += chunk);
+        resp.on('end', () => {
+          try { resolve(JSON.parse(body)); } catch(e) { reject(e); }
+        });
+      });
+      reqH.on('error', reject);
+      reqH.end();
+    });
+
+    const allModels = data.data || [];
+
+    // 회사별 그룹화, 각 3개 상위 모델 추출
+    const grouped = {};
+    for (const [groupKey, groupInfo] of Object.entries(MODEL_PRIORITY)) {
+      const matching = allModels
+        .filter(m => groupInfo.keys.some(k => m.id.startsWith(k)))
+        .map(m => ({
+          id: m.id,
+          name: m.name,
+          inputPrice:  ((m.pricing?.prompt  || 0) * 1_000_000).toFixed(2),
+          outputPrice: ((m.pricing?.completion || 0) * 1_000_000).toFixed(2),
+          contextLength: m.context_length || 0,
+        }))
+        .sort((a, b) => parseFloat(b.outputPrice) - parseFloat(a.outputPrice))
+        .slice(0, 3);
+
+      if (matching.length > 0) {
+        grouped[groupKey] = {
+          label: `${groupInfo.emoji} ${groupInfo.label}`,
+          models: matching,
+        };
+      }
+    }
+
+    cachedModels = { grouped, totalModels: allModels.length, cachedAt: new Date().toISOString() };
+    cacheTime = now;
+    res.json(cachedModels);
+  } catch (err) {
+    console.error('[/api/models] 오류:', err.message);
+    // 폴백: 하드코딩된 모델 반환
+    res.json({
+      grouped: {
+        openai: { label: '🤖 OpenAI', models: [
+          { id: 'openai/gpt-4o', name: 'GPT-4o', inputPrice: '2.50', outputPrice: '10.00' },
+          { id: 'openai/gpt-4o-mini', name: 'GPT-4o mini', inputPrice: '0.15', outputPrice: '0.60' },
+          { id: 'openai/o3-mini', name: 'o3 mini', inputPrice: '1.10', outputPrice: '4.40' },
+        ]},
+        anthropic: { label: '🧠 Anthropic', models: [
+          { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet', inputPrice: '3.00', outputPrice: '15.00' },
+          { id: 'anthropic/claude-3-haiku', name: 'Claude 3 Haiku', inputPrice: '0.25', outputPrice: '1.25' },
+          { id: 'anthropic/claude-3-opus', name: 'Claude 3 Opus', inputPrice: '15.00', outputPrice: '75.00' },
+        ]},
+        google: { label: '✨ Google', models: [
+          { id: 'google/gemini-2.5-pro', name: 'Gemini 2.5 Pro', inputPrice: '1.25', outputPrice: '5.00' },
+          { id: 'google/gemini-2.0-flash', name: 'Gemini 2.0 Flash', inputPrice: '0.10', outputPrice: '0.40' },
+          { id: 'google/gemini-flash-1.5', name: 'Gemini 1.5 Flash', inputPrice: '0.08', outputPrice: '0.30' },
+        ]},
+        qwen: { label: '🐉 Qwen', models: [
+          { id: 'qwen/qwen-2.5-coder-32b-instruct', name: 'Qwen2.5 Coder 32B', inputPrice: '0.10', outputPrice: '0.30' },
+          { id: 'qwen/qwen-2.5-72b-instruct', name: 'Qwen2.5 72B', inputPrice: '0.13', outputPrice: '0.40' },
+          { id: 'qwen/qwen-max', name: 'Qwen Max', inputPrice: '1.60', outputPrice: '6.40' },
+        ]},
+        moonshot: { label: '🌙 Moonshot', models: [
+          { id: 'moonshot/kimi-v1-8k', name: 'Kimi v1 8K', inputPrice: '0.14', outputPrice: '0.59' },
+          { id: 'moonshot/kimi-v1-32k', name: 'Kimi v1 32K', inputPrice: '0.25', outputPrice: '0.80' },
+          { id: 'moonshot/kimi-v1-128k', name: 'Kimi v1 128K', inputPrice: '0.50', outputPrice: '1.50' },
+        ]},
+        deepseek: { label: '🔬 DeepSeek', models: [
+          { id: 'deepseek/deepseek-chat', name: 'DeepSeek Chat', inputPrice: '0.01', outputPrice: '0.03' },
+          { id: 'deepseek/deepseek-reasoner', name: 'DeepSeek Reasoner', inputPrice: '0.14', outputPrice: '0.55' },
+          { id: 'deepseek/deepseek-coder', name: 'DeepSeek Coder', inputPrice: '0.01', outputPrice: '0.03' },
+        ]},
+      },
+      totalModels: 0,
+      cachedAt: new Date().toISOString(),
+      fallback: true,
+    });
+  }
+});
+
+// ── API: 오케스트레이터 실행 (v4.0 — 다중 세션 지원) ────
 let activeOrchestration = null;
 
 app.post('/api/orchestrate', auth, async (req, res) => {
-  const { sessionNumber, planPath: customPlanPath } = req.body;
-  if (!sessionNumber) return res.status(400).json({ error: 'sessionNumber 필수' });
+  // v4.0: sessions 배열 또는 단일 sessionNumber 모두 지원
+  const { sessionNumber, sessions, planPath: customPlanPath } = req.body;
+  const sessionList = sessions
+    ? (Array.isArray(sessions) ? sessions : [sessions]).map(Number)
+    : sessionNumber ? [parseInt(sessionNumber)] : null;
+
+  if (!sessionList || sessionList.length === 0) {
+    return res.status(400).json({ error: 'sessions[] 또는 sessionNumber 필수' });
+  }
   if (activeOrchestration) return res.status(409).json({ error: '이미 오케스트레이션이 실행 중입니다.' });
 
   const planPath = customPlanPath || path.join(currentProject.root, 'plan.md');
@@ -511,10 +634,8 @@ app.post('/api/orchestrate', auth, async (req, res) => {
     return res.status(404).json({ error: `plan.md 없음: ${planPath}` });
   }
 
-  // 즉시 응답 후 비동기 실행
-  res.json({ ok: true, sessionNumber, planPath, status: 'started', message: '오케스트레이터가 시작되었습니다. 터미널에서 실시간 로그를 확인하세요.' });
+  res.json({ ok: true, sessions: sessionList, planPath, status: 'started', message: `📋 ${sessionList.length}개 세션 오케스트레이터가 시작되었습니다.` });
 
-  // WebSocket broadcast 함수
   const broadcast = (msg, type = 'log') => {
     const payload = JSON.stringify({ type, data: String(msg), source: 'orchestrator' });
     wss.clients.forEach(c => {
@@ -522,52 +643,103 @@ app.post('/api/orchestrate', auth, async (req, res) => {
     });
   };
 
-  // 에이전트 상태 업데이트 헬퍼
   const setAgentState = (role, state) => {
     agentStates[role] = { ...(agentStates[role] || {}), ...state };
   };
 
-  activeOrchestration = { sessionNumber, startedAt: Date.now() };
+  activeOrchestration = { sessions: sessionList, startedAt: Date.now() };
 
   try {
-    // 각 에이전트를 idle로 초기화
     for (const role of ['architect', 'orchestrator', 'worker', 'designer', 'reviewer', 'integrator']) {
       setAgentState(role, { status: 'idle', task: null, progress: 0 });
     }
-
-    setAgentState('architect', { status: 'running', task: '프로젝트 구조 설계 중...', progress: 10 });
-    broadcast(`🛰 오케스트레이터 v3.0 시작 — Session ${sessionNumber}`, 'start');
+    broadcast(`🛰 오케스트레이터 v4.0 시작 — ${sessionList.length}개 세션: [${sessionList.join(', ')}]`, 'start');
 
     const { run } = require('./orchestrator/index');
+    let totalCost = 0;
 
-    const result = await run({
-      planPath,
-      sessionNumber: parseInt(sessionNumber),
+    // 다중 세션을 순차 실행
+    for (const sNum of sessionList) {
+      broadcast(`\n${'━'.repeat(30)}\n📋 Session ${sNum} 시작...\n${'━'.repeat(30)}`, 'system');
+      setAgentState('architect', { status: 'running', task: `Session ${sNum} 구조 설계 중...`, progress: 10 });
+
+      const result = await run({
+        planPath,
+        sessionNumber: sNum,
+        projectRoot: currentProject.root,
+        broadcast,
+        onAgentStart: (role, task) => setAgentState(role, { status: 'running', task, progress: 20 }),
+        onAgentDone:  (role, cost) => setAgentState(role, { status: 'idle', task: '완료', progress: 100, costUSD: (agentStates[role]?.costUSD || 0) + cost }),
+      });
+
+      if (result.cost) {
+        totalCost += result.cost.totalUSD || 0;
+        costData.totalUSD += result.cost.totalUSD || 0;
+        costData.sessions.push({ session: sNum, cost: result.cost.totalUSD, timestamp: new Date().toISOString() });
+      }
+      broadcast(`✅ Session ${sNum} 완료!`, 'success');
+    }
+    broadcast(`\n🎉 전체 ${sessionList.length}개 세션 완료! 총 비용: $${totalCost.toFixed(4)}`, 'success');
+  } catch (err) {
+    broadcast(`❌ 오케스트레이터 오류: ${err.message}`, 'error');
+  } finally {
+    activeOrchestration = null;
+    for (const role of Object.keys(agentStates)) {
+      if (agentStates[role]?.status === 'running') setAgentState(role, { status: 'idle', task: null });
+    }
+  }
+});
+
+// ── API: 직접 프롬프트 실행 (v4.0 신규) ────────────────
+app.post('/api/orchestrate/direct', auth, async (req, res) => {
+  const { prompt, taskTitle } = req.body;
+  if (!prompt) return res.status(400).json({ error: 'prompt 필수' });
+  if (activeOrchestration) return res.status(409).json({ error: '이미 오케스트레이션이 실행 중입니다.' });
+
+  res.json({ ok: true, status: 'started', message: '🚀 직접 프롬프트 모드로 오케스트레이터가 시작되었습니다.' });
+
+  const broadcast = (msg, type = 'log') => {
+    const payload = JSON.stringify({ type, data: String(msg), source: 'orchestrator' });
+    wss.clients.forEach(c => {
+      if (c.readyState === WebSocket.OPEN) c.send(payload);
+    });
+  };
+
+  const setAgentState = (role, state) => {
+    agentStates[role] = { ...(agentStates[role] || {}), ...state };
+  };
+
+  activeOrchestration = { directPrompt: true, startedAt: Date.now() };
+
+  try {
+    for (const role of ['architect', 'orchestrator', 'worker', 'designer', 'reviewer', 'integrator']) {
+      setAgentState(role, { status: 'idle', task: null, progress: 0 });
+    }
+    broadcast(`🚀 직접 프롬프트 실행 시작`, 'start');
+    broadcast(`📝 명령: ${prompt}`, 'system');
+
+    // 가상 세션 객체를 직접 생성하여 오케스트레이터에 주입
+    const { runDirect } = require('./orchestrator/index');
+    const result = await runDirect({
+      prompt,
+      taskTitle: taskTitle || '직접 명령 태스크',
       projectRoot: currentProject.root,
       broadcast,
       onAgentStart: (role, task) => setAgentState(role, { status: 'running', task, progress: 20 }),
       onAgentDone:  (role, cost) => setAgentState(role, { status: 'idle', task: '완료', progress: 100, costUSD: (agentStates[role]?.costUSD || 0) + cost }),
     });
 
-    // 비용 반영
-    if (result.cost) {
+    if (result?.cost) {
       costData.totalUSD += result.cost.totalUSD || 0;
-      costData.sessions.push({
-        session: sessionNumber,
-        cost: result.cost.totalUSD,
-        timestamp: new Date().toISOString(),
-      });
+      costData.sessions.push({ session: 'direct', prompt: prompt.slice(0, 80), cost: result.cost.totalUSD, timestamp: new Date().toISOString() });
     }
-
-    broadcast(`✅ Session ${sessionNumber} 완료! 비용: $${result.cost?.totalUSD?.toFixed(4) || '0.0000'}`, 'success');
+    broadcast(`✅ 직접 프롬프트 실행 완료! 비용: $${result?.cost?.totalUSD?.toFixed(4) || '0.0000'}`, 'success');
   } catch (err) {
-    broadcast(`❌ 오케스트레이터 오류: ${err.message}`, 'error');
+    broadcast(`❌ 직접 프롬프트 실행 오류: ${err.message}`, 'error');
   } finally {
     activeOrchestration = null;
     for (const role of Object.keys(agentStates)) {
-      if (agentStates[role]?.status === 'running') {
-        setAgentState(role, { status: 'idle', task: null });
-      }
+      if (agentStates[role]?.status === 'running') setAgentState(role, { status: 'idle', task: null });
     }
   }
 });
@@ -588,9 +760,10 @@ app.get('/', (req, res) => {
 
 // ── 서버 시작 ─────────────────────────────────────────
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`\n🛰  Agent Mission Control Server v3.0`);
+  console.log(`\n🛰  Agent Mission Control Server v4.0`);
   console.log(`   접속 주소: http://0.0.0.0:${PORT}`);
-  console.log(`   현재 프로젝트: ${currentProject.label} (${currentProject.root})`);
+  console.log(`   현재 프로젝트: ${currentProject.label} (${currentProject.root}`);
+  console.log(`   ✅ v4.0: 실시간 모델 동기화, 다중 세션, 직접 프롬프트 지원`);
   console.log(`   전체 프로젝트: ${projects.map(p => p.label).join(', ')}`);
   console.log(`   기본 미션: ${Object.keys(DEFAULT_MISSIONS).join(', ')}`);
   console.log(`   사용자 정의 미션: ${Object.keys(customMissions).length}개`);

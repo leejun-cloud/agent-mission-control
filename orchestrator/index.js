@@ -1,17 +1,18 @@
 /**
- * Orchestrator Main Pipeline (v3.1)
+ * Orchestrator Main Pipeline (v4.0)
  *
  * 실행 흐름:
  *   [1. ARCHITECT  o3.2]      plan.md → 프로젝트 구조 설계도
  *   [2. ORCHESTRATOR Sonnet]  설계도 → N개 태스크 분해 & 워커 할당
  *   [3. WORKERS Kimi×N]       태스크 병렬 코딩
  *   [4. DESIGNER Gemini]      UI 코드 디자인 검토
- *   [5. REVIEWER Qwen]        전수 보안/품질 검토
+ *   [5. REVIEWER Qwen]        전수 보안/품질 검토 + 교육용 상세 리뷰 (v4.0)
  *   [6. FILE WRITER]          코드 파일 시스템에 자동 적용
  *   [7. GITHUB PR]            자동 브랜치 생성 + PR 오픈
  *   [8. NOTIFIER]             Slack 완료 알림
  *
  * 사용법: node orchestrator/index.js --plan ./plan.md --session 1 [--project /root/my-project]
+ * v4.0 신규: runDirect() 함수 — plan.md 없이 직접 프롬프트로 실행
  */
 
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
@@ -375,7 +376,37 @@ function buildReviewerPrompt(files) {
     `=== ${f.path} ===\n${(f.content || '').slice(0, 600)}`
   ).join('\n\n');
 
-  return `다음 코드를 보안 및 품질 측면에서 검토하세요:\n\n${preview}\n\nJSON: {"score": 0-100, "issues": [{"severity": "high|medium|low", "file": "...", "message": "..."}]}`;
+  return `당신은 시니어 소프트웨어 아키텍트 겨해 교육 멘토입니다.
+다음 코드를 상세히 분석하여 보안, 품질, 교유적 리뷰를 제공하세요.
+
+${preview}
+
+## 요구 사항
+각 파일에 대해 다음을 포함하세요:
+1. **사용된 타기술 & 도구**: 어떤 프레임워크, 패턴, 라이브러리를 사용했는지 표기 (예: React hooks, Firestore onSnapshot 등)
+2. **사용 이유**: 왜 이 접근법 / 학수를 택했는지 설명 (예: useEffect를 싼 이유, 웨 소켓 vs polling)
+3. **보안 검토**: XSS, CSRF, 인증 누락, SQL 인젝션 등 취약점 이슈
+4. **품질 평가**: 코드 복잡도, 덕업링, 네이밍, SRP 위반 등
+5. **개선 안**: 구체적인 코드 예시를 포함한 개선안 (‘모호할수 있다’가 아니라 ‘이렇게 블해라’)
+6. **학습 탁쿤**: 이 코드에서 배울 수 있는 핑 주요 개념 1개 나열
+
+응답 JSON 형식:
+{
+  "score": 0-100,
+  "summary": "전체 코드 질 평가의 한 줄 요약",
+  "files": [
+    {
+      "path": "...",
+      "techniques": [
+        {"name": "기법/도구 이름", "reason": "왜 사용했는지", "example": "코드 예"}
+      ],
+      "issues": [
+        {"severity": "high|medium|low", "type": "보안|품질|성능|변수명", "message": "상세 문제 설명", "fix": "구체적 해결 코드"}
+      ],
+      "learning_tip": "이 파일에서 배울 핀 핵심 개념"
+    }
+  ]
+}`;
 }
 
 /* ── HELPERS ─────────────────────────────────────── */
@@ -391,6 +422,93 @@ function parseJsonSafe(text) {
   }
 }
 
+/* ── runDirect: plan.md 없이 직접 프롬프트로 돌림 (v4.0) ─ */
+async function runDirect({ prompt, taskTitle, projectRoot, broadcast, onAgentStart, onAgentDone }) {
+  const log = (msg, type = 'system') => {
+    console.log(`[Direct] ${msg}`);
+    if (broadcast) broadcast(msg, type);
+  };
+
+  const agentStart = (role, task) => { if (onAgentStart) onAgentStart(role, task); };
+  const agentDone  = (role, cost) => { if (onAgentDone)  onAgentDone(role, cost); };
+
+  const startTime = Date.now();
+  const tracker = new CostTracker({});
+
+  log('🚀 [DIRECT] 직접 프롬프트 모드 시작', 'start');
+
+  try {
+    // 1. ARCHITECT
+    log('🏗 [ARCHITECT] 구조 설계 중...');
+    agentStart('architect', '구조 설계 중...');
+    const archResult = await callAgent('architect', [
+      { role: 'system', content: '당신은 소프트웨어 아키텍트입니다. JSON으로만 응답하세요.' },
+      { role: 'user', content: `다음 작업을 위한 프로젝트 구조를 설계해주세요:\n\n${prompt}\n\nJSON: {"structure": {}, "interfaces": {}, "conventions": []}` },
+    ], { temperature: 0.1, max_tokens: 2048 });
+    tracker.record({ model: process.env.AGENT_ARCHITECT, role: 'architect', costUSD: archResult.costUSD, tokens: archResult.usage.total_tokens });
+    const architectOutput = parseJsonSafe(archResult.content);
+    agentDone('architect', archResult.costUSD);
+    log(`✅ [ARCHITECT] 완료 ($${archResult.costUSD.toFixed(4)})`);
+
+    // 2. WORKER
+    log('⚡ [WORKER] 코드 구현 중...');
+    agentStart('worker', '코드 구현 중...');
+    const workerContext = architectOutput
+      ? `\n\n아키텍처 가이드:\n${JSON.stringify(architectOutput?.conventions || [], null, 2).slice(0, 600)}`
+      : '';
+    const workerResult = await callAgent('worker', [
+      { role: 'system', content: '당신은 시니어 풀스택 개발자입니다. 주어진 태스크의 코드를 완벽하게 구현하세요. JSON: {"files": [{"path": "...", "content": "..."}]}' },
+      { role: 'user', content: `${workerContext}\n\n작업: ${prompt}\n\nJSON {"files": [{"path": "...", "content": "..."}]}로 응답` },
+    ], { temperature: 0.2, max_tokens: 8192 });
+    tracker.record({ model: process.env.AGENT_WORKER, role: 'worker', costUSD: workerResult.costUSD, tokens: workerResult.usage.total_tokens });
+    const workerFiles = parseJsonSafe(workerResult.content)?.files || [];
+    agentDone('worker', workerResult.costUSD);
+    log(`✅ [WORKER] 완료 (${workerFiles.length}개 파일, $${workerResult.costUSD.toFixed(4)})`);
+
+    // 3. REVIEWER (교육용 상세 리뷰)
+    log('🔍 [REVIEWER] 교육용 코드 리뷰 중...');
+    agentStart('reviewer', '교육용 상세 리뷰 중...');
+    const reviewPrompt = buildReviewerPrompt(workerFiles);
+    const reviewResult = await callAgent('reviewer', [
+      { role: 'system', content: '당신은 시니어 아키텍트 겸 교육 멘토입니다. 코드의 기법, 도구, 이유를 아주 구체적으로 설명하여 JSON으로 리뷰하세요.' },
+      { role: 'user', content: reviewPrompt },
+    ], { temperature: 0.1, max_tokens: 8192 });
+    tracker.record({ model: process.env.AGENT_REVIEWER, role: 'reviewer', costUSD: reviewResult.costUSD, tokens: reviewResult.usage.total_tokens });
+    const review = parseJsonSafe(reviewResult.content);
+    agentDone('reviewer', reviewResult.costUSD);
+    log(`✅ [REVIEWER] 리뷰 완료 (점수: ${review?.score || '?'}/100, $${reviewResult.costUSD.toFixed(4)})`, 'success');
+
+    // 리뷰 상세 로그 출력
+    if (review?.files) {
+      for (const fr of review.files) {
+        log(`\n📊 [${fr.path}]`, 'system');
+        (fr.techniques || []).forEach(t => log(`  🔧 ${t.name}: ${t.reason}`, 'log'));
+        (fr.issues || []).forEach(i => log(`  [${i.severity?.toUpperCase()}] ${i.message}`, i.severity === 'high' ? 'error' : 'warn'));
+        if (fr.learning_tip) log(`  🎓 학습 팁: ${fr.learning_tip}`, 'success');
+      }
+    }
+
+    // 4. FILE WRITER
+    let writeResult = { total: 0, errors: [] };
+    if (workerFiles.length > 0 && projectRoot) {
+      const FileWriter = require('./file-writer');
+      const writer = new FileWriter(projectRoot, { backup: true, dryRun: false });
+      writeResult = writer.writeAll(workerFiles);
+      log(`💾 [FILE WRITER] ${writeResult.total}개 파일 적용 완료`);
+    }
+
+    const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+    const costSummary = tracker.summary();
+    log(`\n${'━'.repeat(40)}\n🎉 직접 실행 완료\n적용 파일: ${writeResult.total}개\n소요 시간: ${duration}초\n총 비용: $${costSummary.totalUSD.toFixed(4)}\n${'━'.repeat(40)}`, 'success');
+
+    return { ok: true, workerFiles, review, writeResult, cost: costSummary, duration };
+
+  } catch (err) {
+    log(`❌ [DIRECT] 오류: ${err.message}`, 'error');
+    throw err;
+  }
+}
+
 /* ── CLI ─────────────────────────────────────────── */
 if (require.main === module) {
   const args = process.argv.slice(2);
@@ -399,16 +517,17 @@ if (require.main === module) {
   const planPath     = get('--plan') || './plan.md';
   const sessionNum   = parseInt(get('--session') || '1');
   const projectRoot  = get('--project') || process.cwd();
+  const directPrompt = get('--prompt');
 
-  run({ planPath, sessionNumber: sessionNum, projectRoot, broadcast: null })
-    .then(r => {
-      console.log(`\n✅ 완료! 총 비용: $${r.cost.totalUSD.toFixed(4)}`);
-      process.exit(0);
-    })
-    .catch(err => {
-      console.error(`\n❌ 실패: ${err.message}`);
-      process.exit(1);
-    });
+  if (directPrompt) {
+    runDirect({ prompt: directPrompt, projectRoot, broadcast: null })
+      .then(r => { console.log(`\n✅ 완료! 총 비용: $${r.cost.totalUSD.toFixed(4)}`); process.exit(0); })
+      .catch(err => { console.error(`\n❌ 실패: ${err.message}`); process.exit(1); });
+  } else {
+    run({ planPath, sessionNumber: sessionNum, projectRoot, broadcast: null })
+      .then(r => { console.log(`\n✅ 완료! 총 비용: $${r.cost.totalUSD.toFixed(4)}`); process.exit(0); })
+      .catch(err => { console.error(`\n❌ 실패: ${err.message}`); process.exit(1); });
+  }
 }
 
-module.exports = { run };
+module.exports = { run, runDirect };

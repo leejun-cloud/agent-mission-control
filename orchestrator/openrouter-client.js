@@ -12,7 +12,7 @@ const BASE_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const PRICING = {
   'openai/o3-mini':                     { input: 1.10,  output: 4.40 },
   'anthropic/claude-3.5-sonnet':        { input: 3.00,  output: 15.00 },
-  'moonshot/kimi-2.5':                  { input: 0.14,  output: 0.59 },
+  'moonshot/kimi-v1-8k':                  { input: 0.14,  output: 0.59 },
   'google/gemini-2.5-pro':              { input: 1.25,  output: 5.00 },
   'qwen/qwen-2.5-coder-32b-instruct':  { input: 0.10,  output: 0.30 },
 };

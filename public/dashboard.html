@@ -595,27 +595,52 @@ body::before {
         </div>
       </div>
 
-      <!-- TAB: ORCHESTRATE -->
+      <!-- TAB: ORCHESTRATE v4.0 -->
       <div class="tab-pane" id="pane-orchestrate">
         <div class="missions-pane">
 
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
             <div style="display:flex;align-items:center;gap:7px">
               <div class="card-bar" style="background:var(--purple)"></div>
-              <div class="card-lbl">AI ORCHESTRATION PIPELINE</div>
+              <div class="card-lbl">AI ORCHESTRATION PIPELINE v4.0</div>
             </div>
-            <div style="font-size:9px;color:var(--muted2);font-family:var(--mono)" id="orch-status-badge">IDLE</div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <span style="font-size:9px;background:var(--purple);color:#fff;padding:2px 7px;border-radius:10px">EDUCATIONAL REVIEW</span>
+              <div style="font-size:9px;color:var(--muted2);font-family:var(--mono)" id="orch-status-badge">IDLE</div>
+            </div>
           </div>
 
-          <!-- Plan Sessions -->
-          <div class="add-mission-card" style="margin-bottom:12px">
-            <div class="add-mission-title">PLAN.MD SESSION</div>
-            <div class="form-row" style="margin-bottom:0">
-              <select class="form-input" id="orch-session" style="cursor:pointer">
-                <option value="">plan.md 로드 중...</option>
-              </select>
-              <button class="form-btn" onclick="loadPlanSessions()" style="background:var(--surface2);border:1px solid var(--border);color:var(--muted2)">↻ RELOAD</button>
-              <button class="form-btn" id="orch-run-btn" onclick="runOrchestration()" style="background:linear-gradient(135deg,var(--purple),var(--accent));min-width:90px">▶ RUN</button>
+          <!-- Mode Toggle -->
+          <div style="display:flex;gap:6px;margin-bottom:12px">
+            <button id="mode-plan-btn" class="form-btn" onclick="setOrchMode('plan')" style="flex:1;background:linear-gradient(135deg,var(--purple),var(--accent))">📋 PLAN.MD 세션</button>
+            <button id="mode-direct-btn" class="form-btn" onclick="setOrchMode('direct')" style="flex:1;background:var(--surface2);border:1px solid var(--border);color:var(--muted2)">🚀 직접 프롬프트</button>
+          </div>
+
+          <!-- Plan Sessions (Multi-Select) -->
+          <div class="add-mission-card" id="orch-plan-section" style="margin-bottom:12px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+              <div class="add-mission-title">PLAN.MD 세션 (다중 선택 가능)</div>
+              <button class="form-btn" onclick="loadPlanSessions()" style="background:var(--surface2);border:1px solid var(--border);color:var(--muted2);padding:3px 10px;font-size:9px">↻ RELOAD</button>
+            </div>
+            <div id="session-checkbox-list" style="display:flex;flex-direction:column;gap:5px;max-height:180px;overflow-y:auto;margin-bottom:10px">
+              <div style="color:var(--muted2);font-size:10px;font-family:var(--mono)">plan.md 로드 중...</div>
+            </div>
+            <div style="display:flex;gap:6px">
+              <button class="form-btn" onclick="selectAllSessions(true)" style="background:var(--surface2);border:1px solid var(--border);color:var(--muted2);font-size:9px">전체선택</button>
+              <button class="form-btn" onclick="selectAllSessions(false)" style="background:var(--surface2);border:1px solid var(--border);color:var(--muted2);font-size:9px">전체해제</button>
+              <div style="flex:1"></div>
+              <button class="form-btn" id="orch-run-btn" onclick="runOrchestration()" style="background:linear-gradient(135deg,var(--purple),var(--accent));min-width:80px">▶ RUN</button>
+            </div>
+          </div>
+
+          <!-- Direct Prompt Section -->
+          <div class="add-mission-card" id="orch-direct-section" style="margin-bottom:12px;display:none">
+            <div class="add-mission-title" style="margin-bottom:8px">🚀 직접 명령 실행 (plan.md 불필요)</div>
+            <textarea id="direct-prompt-input" placeholder="예: &quot;React로 간단한 TODO 앱을 만들어줘.&quot;&#10;예: &quot;Python으로 CSV를 읽어 JSON으로 변환하는 스크립트&quot;"
+              style="width:100%;height:100px;background:var(--surface1);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:8px;font-family:var(--mono);font-size:11px;resize:vertical;box-sizing:border-box"></textarea>
+            <div style="display:flex;gap:6px;margin-top:8px">
+              <input class="form-input" id="direct-task-title" placeholder="작업 제목 (선택)" style="flex:1">
+              <button class="form-btn" id="orch-direct-run-btn" onclick="runDirectOrchestration()" style="background:linear-gradient(135deg,#f97316,var(--purple));min-width:80px">▶ 바로 실행</button>
             </div>
           </div>
 
@@ -624,14 +649,23 @@ body::before {
             <!-- filled by JS -->
           </div>
 
-          <!-- Agent Model Config -->
+          <!-- AI Agent Model Config (v4.0: Dynamic + grouped) -->
           <div class="add-mission-card">
-            <div class="add-mission-title">AI AGENT MODEL CONFIG</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+              <div class="add-mission-title">AI AGENT MODEL CONFIG</div>
+              <button class="form-btn" onclick="loadDynamicModels()" style="background:var(--surface2);border:1px solid var(--border);color:var(--muted2);font-size:9px">🔄 모델 동기화</button>
+            </div>
             <div id="agent-config-list" style="display:flex;flex-direction:column;gap:6px"></div>
+            <!-- Dynamic Model Browser -->
+            <div id="model-browser" style="display:none;margin-top:10px;border-top:1px solid var(--border);padding-top:10px">
+              <div style="font-size:9px;color:var(--muted2);margin-bottom:8px;font-family:var(--mono)">▼ OPENROUTER 실시간 모델 목록 (회사별 상위 3개)</div>
+              <div id="model-groups" style="display:flex;flex-direction:column;gap:8px"></div>
+            </div>
           </div>
 
         </div>
       </div>
+
 
       <!-- TAB: SHELL (history) -->
       <div class="tab-pane" id="pane-shell" style="flex-direction:column">
@@ -668,7 +702,7 @@ body::before {
   <option value="google/gemini-3.1-flash">
   <option value="deepseek/deepseek-chat">
   <option value="deepseek/deepseek-reasoner">
-  <option value="moonshot/kimi-2.5">
+  <option value="moonshot/kimi-v1-8k">
   <option value="qwen/qwen-2.5-coder-32b-instruct">
 </datalist>
 
@@ -1016,48 +1050,80 @@ function renderPipelineSteps(agentStates = []) {
   }).join('');
 }
 
+/* ── ORCH MODE TOGGLE (v4.0) ─────────────────────────── */
+let orchMode = 'plan';
+function setOrchMode(mode) {
+  orchMode = mode;
+  document.getElementById('orch-plan-section').style.display    = mode === 'plan'   ? '' : 'none';
+  document.getElementById('orch-direct-section').style.display  = mode === 'direct' ? '' : 'none';
+  const planBtn   = document.getElementById('mode-plan-btn');
+  const directBtn = document.getElementById('mode-direct-btn');
+  if (mode === 'plan') {
+    planBtn.style.background   = 'linear-gradient(135deg,var(--purple),var(--accent))';
+    planBtn.style.color        = '';
+    directBtn.style.background = 'var(--surface2)';
+    directBtn.style.color      = 'var(--muted2)';
+  } else {
+    directBtn.style.background = 'linear-gradient(135deg,#f97316,var(--purple))';
+    directBtn.style.color      = '#fff';
+    planBtn.style.background   = 'var(--surface2)';
+    planBtn.style.color        = 'var(--muted2)';
+  }
+}
+
+function selectAllSessions(checked) {
+  document.querySelectorAll('#session-checkbox-list input[type=checkbox]')
+    .forEach(cb => cb.checked = checked);
+}
+
 async function loadPlanSessions() {
+  const container = document.getElementById('session-checkbox-list');
+  container.innerHTML = '<div style="color:var(--muted2);font-size:10px;font-family:var(--mono)">로드 중...</div>';
   try {
     const r = await api('/api/plan');
-    if (!r.ok) return;
+    if (!r.ok) { container.innerHTML = '<div style="color:var(--warn);font-size:10px">API 오류</div>'; return; }
     const d = await r.json();
-    const sel = document.getElementById('orch-session');
     if (!d.exists || !d.sessions.length) {
-      sel.innerHTML = '<option value="">plan.md 없음 또는 세션 미정의</option>';
+      container.innerHTML = '<div style="color:var(--muted2);font-size:10px;font-family:var(--mono)">plan.md 없음 또는 세션 미정의</div>';
       return;
     }
-    sel.innerHTML = d.sessions.map(s =>
-      `<option value="${s.number}">Session ${s.number}: ${s.title}</option>`
+    container.innerHTML = d.sessions.map(s =>
+      `<label style="display:flex;align-items:center;gap:8px;padding:5px 8px;background:var(--surface1);border-radius:5px;cursor:pointer;border:1px solid var(--border)">
+        <input type="checkbox" value="${s.number}" style="accent-color:var(--purple);width:14px;height:14px">
+        <span style="font-size:10px;font-family:var(--mono)"><span style="color:var(--accent);font-weight:800">Session ${s.number}</span></span>
+        <span style="font-size:10px;color:var(--muted2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.title}</span>
+      </label>`
     ).join('');
   } catch {
-    document.getElementById('orch-session').innerHTML = '<option value="">로드 실패</option>';
+    container.innerHTML = '<div style="color:var(--error);font-size:10px">로드 실패</div>';
   }
 }
 
 async function runOrchestration() {
-  const sessionNumber = document.getElementById('orch-session').value;
-  if (!sessionNumber) { showToast('세션을 선택하세요.', 'err'); return; }
+  // v4.0: 체크박스에서 선택된 세션 목록 수집
+  const checked = [...document.querySelectorAll('#session-checkbox-list input[type=checkbox]:checked')];
+  if (!checked.length) { showToast('하나 이상의 세션을 선택하세요.', 'err'); return; }
+  const sessions = checked.map(cb => parseInt(cb.value));
 
   const btn = document.getElementById('orch-run-btn');
   btn.disabled = true; btn.textContent = '⏳ RUNNING...';
-  document.getElementById('orch-status-badge').textContent = 'RUNNING';
+  document.getElementById('orch-status-badge').textContent = `RUNNING (${sessions.length})`;
   document.getElementById('orch-status-badge').style.color = 'var(--accent)';
 
-  // Switch to terminal to watch live logs
-  document.querySelectorAll('.tab-btn')[0].click();
-  addLog(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`, 'system');
-  addLog(`🛰 오케스트레이션 시작 — Session ${sessionNumber}`, 'start');
+  // 터미널 탭으로 전환하여 실시간 로그 확인
+  document.querySelector('.tab-btn[onclick*=terminal]')?.click();
+  addLog(`${'━'.repeat(30)}`, 'system');
+  addLog(`🛰 오케스트레이션 시작 — Sessions [${sessions.join(', ')}]`, 'start');
 
   try {
-    const r = await api('/api/orchestrate', { method: 'POST', body: { sessionNumber: parseInt(sessionNumber) } });
+    const r = await api('/api/orchestrate', { method: 'POST', body: { sessions } });
     const d = await r.json();
     if (!r.ok) {
       addLog(`❌ 오케스트레이션 실패: ${d.error}`, 'error');
       showToast(d.error, 'err');
     } else {
       addLog(`📡 ${d.message}`, 'system');
-      showToast('오케스트레이션 시작됨!', 'ok');
-      // Poll status every 5 seconds
+      showToast(`Session [${sessions.join(', ')}] 시작됨!`, 'ok');
       const pollInterval = setInterval(async () => {
         const sr = await api('/api/orchestrate/status');
         if (!sr.ok) return;
@@ -1068,14 +1134,105 @@ async function runOrchestration() {
           btn.disabled = false; btn.textContent = '▶ RUN';
           document.getElementById('orch-status-badge').textContent = 'IDLE';
           document.getElementById('orch-status-badge').style.color = '';
+          showToast(`✅ 전체 ${sessions.length}개 세션 완료!`, 'ok');
         }
-      }, 5000);
+      }, 4000);
     }
   } catch (e) {
     addLog(`❌ 요청 오류: ${e.message}`, 'error');
     btn.disabled = false; btn.textContent = '▶ RUN';
   }
 }
+
+async function runDirectOrchestration() {
+  const prompt = document.getElementById('direct-prompt-input').value.trim();
+  const taskTitle = document.getElementById('direct-task-title').value.trim();
+  if (!prompt) { showToast('프롬프트를 입력하세요.', 'err'); return; }
+
+  const btn = document.getElementById('orch-direct-run-btn');
+  btn.disabled = true; btn.textContent = '⏳ 실행 중...';
+  document.getElementById('orch-status-badge').textContent = 'RUNNING';
+  document.getElementById('orch-status-badge').style.color = 'var(--accent)';
+
+  document.querySelector('.tab-btn[onclick*=terminal]')?.click();
+  addLog(`${'━'.repeat(30)}`, 'system');
+  addLog(`🚀 직접 명령 시작`, 'start');
+  addLog(`📝 ${prompt}`, 'system');
+
+  try {
+    const r = await api('/api/orchestrate/direct', { method: 'POST', body: { prompt, taskTitle } });
+    const d = await r.json();
+    if (!r.ok) {
+      addLog(`❌ 실패: ${d.error}`, 'error'); showToast(d.error, 'err');
+    } else {
+      addLog(`📡 ${d.message}`, 'system'); showToast('직접 실행 시작됨!', 'ok');
+      const pollInterval = setInterval(async () => {
+        const sr = await api('/api/orchestrate/status');
+        if (!sr.ok) return;
+        const sd = await sr.json();
+        renderPipelineSteps(sd.agents || []);
+        if (!sd.active) {
+          clearInterval(pollInterval);
+          btn.disabled = false; btn.textContent = '▶ 바로 실행';
+          document.getElementById('orch-status-badge').textContent = 'IDLE';
+          document.getElementById('orch-status-badge').style.color = '';
+          showToast('✅ 직접 실행 완료!', 'ok');
+        }
+      }, 4000);
+    }
+  } catch (e) {
+    addLog(`❌ 오류: ${e.message}`, 'error');
+    btn.disabled = false; btn.textContent = '▶ 바로 실행';
+  }
+}
+
+async function loadDynamicModels() {
+  const browser = document.getElementById('model-browser');
+  const groups  = document.getElementById('model-groups');
+  browser.style.display = 'block';
+  groups.innerHTML = '<div style="color:var(--muted2);font-size:10px;font-family:var(--mono)">OpenRouter 모델 조회 중...</div>';
+
+  try {
+    const r = await api('/api/models');
+    if (!r.ok) throw new Error('API 오류');
+    const data = await r.json();
+
+    groups.innerHTML = Object.entries(data.grouped || {}).map(([key, group]) =>
+      `<div style="border:1px solid var(--border);border-radius:6px;overflow:hidden">
+        <div style="background:var(--surface2);padding:5px 10px;font-size:9px;font-weight:800;letter-spacing:1px;color:var(--muted2);font-family:var(--mono)">${group.label}</div>
+        ${group.models.map(m =>
+          `<div style="display:flex;align-items:center;gap:8px;padding:5px 10px;border-top:1px solid var(--border);cursor:pointer" onclick="applyModelToInput('${m.id}')" title="클릭하면 선택된 에이전트 입력창에 복사">
+            <span style="font-size:10px;flex:1;font-family:var(--mono);color:var(--text)">${m.name}</span>
+            <span style="font-size:9px;color:var(--success);font-family:var(--mono);flex-shrink:0">in: $${m.inputPrice}</span>
+            <span style="font-size:9px;color:var(--warn);font-family:var(--mono);flex-shrink:0">out: $${m.outputPrice}</span>
+            <span style="font-size:8px;color:var(--muted2);font-family:var(--mono)">/1M</span>
+          </div>`
+        ).join('')}
+      </div>`
+    ).join('');
+
+    if (data.fallback) {
+      groups.insertAdjacentHTML('afterbegin', '<div style="color:var(--warn);font-size:9px;padding:4px 8px;margin-bottom:6px">⚠️ API 오류로 오프라인 목록 표시 중</div>');
+    } else {
+      const cachedAtEl = `<div style="color:var(--muted2);font-size:9px;margin-bottom:6px;font-family:var(--mono)">총 ${data.totalModels}개 모델 · ${new Date(data.cachedAt).toLocaleTimeString('ko-KR')} 기준</div>`;
+      groups.insertAdjacentHTML('afterbegin', cachedAtEl);
+    }
+  } catch (e) {
+    groups.innerHTML = `<div style="color:var(--error);font-size:10px">조회 실패: ${e.message}</div>`;
+  }
+}
+
+let lastFocusedModelInput = null;
+function applyModelToInput(modelId) {
+  if (lastFocusedModelInput) {
+    lastFocusedModelInput.value = modelId;
+    const role = lastFocusedModelInput.dataset.role;
+    if (role) updateAgentModel(role, modelId);
+  } else {
+    navigator.clipboard.writeText(modelId).then(() => showToast(`복사됨: ${modelId}`, 'ok'));
+  }
+}
+
 
 async function loadAgentConfig() {
   try {
