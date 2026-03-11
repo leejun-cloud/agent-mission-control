@@ -987,12 +987,20 @@ app.post('/api/qa/run', auth, async (req, res) => {
       .replace(/SCREENSHOT_PATH_2/g, ssPath2)
       .replace(/SCREENSHOT_PATH_3/g, ssPath3);
 
-    // playwright require 경로 보장 (상태 경로가 아닌 절대 경로로 치환)
+    // playwright require 경로 보장 (지능적 중복 방지 및 절대 경로 치환)
     const playwrightPath = path.join(__dirname, 'node_modules', 'playwright');
-    if (!script.includes('const { chromium }') && !script.includes('require(\'playwright\')')) {
+    
+    // 이미 chromium 선언이 있는지 또는 playwright require가 있는지 정규식으로 체크 (공백, 따옴표 무관)
+    const hasChromiumDecl = /const\s*{[^}]*chromium[^}]*}\s*=\s*require\s*\(['"]playwright['"]\)/i.test(script) ||
+                            /let\s*{[^}]*chromium[^}]*}\s*=\s*require\s*\(['"]playwright['"]\)/i.test(script) ||
+                            /var\s*{[^}]*chromium[^}]*}\s*=\s*require\s*\(['"]playwright['"]\)/i.test(script);
+    const hasPlaywrightReq = /require\s*\(['"]playwright['"]\)/i.test(script);
+
+    if (!hasChromiumDecl && !hasPlaywrightReq) {
         script = `const { chromium } = require('${playwrightPath}');\n` + script;
     } else {
-        script = script.replace(/['"]playwright['"]/g, `'${playwrightPath}'`);
+        // 이미 존재한다면 모듈명만 절대 경로로 치환 (gi 플래그로 중복 치환 방지)
+        script = script.replace(/require\s*\(['"]playwright['"]\)/gi, `require('${playwrightPath}')`);
     }
 
     fs.writeFileSync(scriptPath, script, 'utf8');
