@@ -542,13 +542,33 @@ app.post('/api/agents/config', auth, (req, res) => {
 });
 
 const MODEL_PRIORITY = {
-  'openai':      { label: 'OpenAI',          emoji: '🤖', preferred: ['openai/gpt-4o', 'openai/gpt-4o-mini', 'openai/o3-mini', 'openai/o1'] },
-  'anthropic':   { label: 'Anthropic',       emoji: '🧠', preferred: ['anthropic/claude-3.7-sonnet', 'anthropic/claude-3.5-haiku', 'anthropic/claude-3-opus'] },
-  'google':      { label: 'Google',          emoji: '✨', preferred: ['google/gemini-2.5-pro', 'google/gemini-2.5-flash', 'google/gemini-2.0-flash-001'] },
-  'deepseek':    { label: 'DeepSeek',        emoji: '🔬', preferred: ['deepseek/deepseek-chat', 'deepseek/deepseek-r1'] },
-  'qwen':        { label: 'Qwen (Alibaba)',  emoji: '🐉', preferred: ['qwen/qwen-max', 'qwen/qwq-32b', 'qwen/qwen-2.5-coder-32b-instruct', 'qwen/qwen-plus'] },
-  'moonshot':    { label: 'Moonshot (Kimi)', emoji: '🌙', preferred: ['moonshot/kimi-v1-128k', 'moonshot/kimi-v1-32k', 'moonshot/kimi-v1-8k'] },
-  'zhipu':       { label: 'Zhipu (GLM)',     emoji: '🐼', preferred: ['zhipu/glm-5', 'zhipu/glm-4-plus', 'zhipu/glm-4-flash'] },
+  'openai':      { label: 'OpenAI',          emoji: '🤖', preferred: [
+    'openai/o3-mini', 'openai/o1', 'openai/gpt-4o', 'openai/gpt-4o-mini', 'openai/gpt-4-turbo', 'openai/gpt-4', 'openai/o1-mini', 'openai/o1-preview', 'openai/gpt-3.5-turbo'
+  ] },
+  'anthropic':   { label: 'Anthropic',       emoji: '🧠', preferred: [
+    'anthropic/claude-3.7-sonnet', 'anthropic/claude-3.5-sonnet', 'anthropic/claude-3.5-haiku', 'anthropic/claude-3-opus', 'anthropic/claude-3-sonnet', 'anthropic/claude-3-haiku'
+  ] },
+  'google':      { label: 'Google',          emoji: '✨', preferred: [
+    'google/gemini-2.5-pro', 'google/gemini-2.0-pro-exp-02-05', 'google/gemini-2.0-flash-001', 'google/gemini-1.5-pro', 'google/gemini-1.5-flash', 'google/gemini-2.0-flash-lite-001'
+  ] },
+  'deepseek':    { label: 'DeepSeek',        emoji: '🔬', preferred: [
+    'deepseek/deepseek-r1', 'deepseek/deepseek-chat', 'deepseek/deepseek-v3', 'deepseek/deepseek-r1-distill-llama-70b', 'deepseek/deepseek-r1-distill-qwen-32b'
+  ] },
+  'meta':        { label: 'Meta (Llama)',    emoji: '🦙', preferred: [
+    'meta-llama/llama-3.3-70b-instruct', 'meta-llama/llama-3.1-405b-instruct', 'meta-llama/llama-3.1-70b-instruct', 'meta-llama/llama-3.1-8b-instruct', 'meta-llama/llama-3.2-3b-instruct', 'meta-llama/llama-3-70b-instruct'
+  ] },
+  'qwen':        { label: 'Qwen (Alibaba)',  emoji: '🐉', preferred: [
+    'qwen/qwen-max', 'qwen/qwen-plus', 'qwen/qwen-2.5-coder-32b-instruct', 'qwen/qwen-2.5-72b-instruct', 'qwen/qwq-32b'
+  ] },
+  'moonshot':    { label: 'Moonshot (Kimi)', emoji: '🌙', preferred: [
+    'moonshot/kimi-2.5', 'moonshot/kimi-v1-128k', 'moonshot/kimi-v1-32k', 'moonshot/kimi-v1-8k'
+  ] },
+  'mistral':     { label: 'Mistral',         emoji: '🌪', preferred: [
+    'mistralai/mistral-large', 'mistralai/mixtral-8x22b-instruct', 'mistralai/mistral-nemo', 'mistralai/pixtral-12b'
+  ] },
+  'zhipu':       { label: 'Zhipu (GLM)',     emoji: '🐼', preferred: [
+    'zhipu/glm-4-plus', 'zhipu/glm-4-flash', 'zhipu/glm-4-0520'
+  ] },
 };
 
 // 실시간 모델 목록 캐시
@@ -657,16 +677,24 @@ const FALLBACK_MODELS = {
       { id: 'qwen/qwen-2.5-72b-instruct',    name: 'Qwen2.5 72B',       inputPrice: '0.130', outputPrice: '0.400' },
     ]},
     moonshot: { label: '🌙 Moonshot (Kimi)', models: [
-      { id: 'moonshot/kimi-k2',              name: 'Kimi K2',           inputPrice: '0.600', outputPrice: '2.500' },
-      { id: 'moonshot/kimi-v1-5-8k',         name: 'Kimi v1.5 8K',      inputPrice: '0.100', outputPrice: '0.300' },
-      { id: 'moonshot/kimi-v1-5-32k',        name: 'Kimi v1.5 32K',     inputPrice: '0.150', outputPrice: '0.450' },
-      { id: 'moonshot/kimi-v1-8k',           name: 'Kimi v1 8K',        inputPrice: '0.140', outputPrice: '0.590' },
+      { id: 'moonshot/kimi-2.5',             name: 'Kimi 2.5',          inputPrice: '0.600', outputPrice: '2.500' },
       { id: 'moonshot/kimi-v1-128k',         name: 'Kimi v1 128K',      inputPrice: '0.500', outputPrice: '1.500' },
+      { id: 'moonshot/kimi-v1-32k',          name: 'Kimi v1 32K',       inputPrice: '0.150', outputPrice: '0.450' },
+      { id: 'moonshot/kimi-v1-8k',           name: 'Kimi v1 8K',        inputPrice: '0.140', outputPrice: '0.590' },
+    ]},
+    meta: { label: '🦙 Meta (Llama)', models: [
+      { id: 'meta-llama/llama-3.3-70b-instruct',   name: 'Llama 3.3 70B',     inputPrice: '0.120', outputPrice: '0.300' },
+      { id: 'meta-llama/llama-3.1-405b-instruct',  name: 'Llama 3.1 405B',    inputPrice: '1.000', outputPrice: '3.000' },
+      { id: 'meta-llama/llama-3.1-70b-instruct',   name: 'Llama 3.1 70B',     inputPrice: '0.200', outputPrice: '0.600' },
+      { id: 'meta-llama/llama-3.1-8b-instruct',    name: 'Llama 3.1 8B',      inputPrice: '0.050', outputPrice: '0.050' },
+    ]},
+    mistral: { label: '🌪 Mistral', models: [
+      { id: 'mistralai/mistral-large',             name: 'Mistral Large',     inputPrice: '2.000', outputPrice: '6.000' },
+      { id: 'mistralai/mixtral-8x22b-instruct',    name: 'Mixtral 8x22B',     inputPrice: '0.640', outputPrice: '0.640' },
     ]},
     zhipu: { label: '🐼 Zhipu (GLM)', models: [
-      { id: 'zhipu/glm-4-flash',             name: 'GLM 4 Flash',       inputPrice: '0.000', outputPrice: '0.000' },
       { id: 'zhipu/glm-4-plus',              name: 'GLM 4 Plus',        inputPrice: '0.700', outputPrice: '0.700' },
-      { id: 'zhipu/glm-5',                   name: 'GLM 5',             inputPrice: '1.000', outputPrice: '1.000' },
+      { id: 'zhipu/glm-4-flash',             name: 'GLM 4 Flash',       inputPrice: '0.000', outputPrice: '0.000' },
     ]},
   },
   totalModels: 0,
@@ -824,9 +852,210 @@ app.get('/api/orchestrate/status', auth, (req, res) => {
 });
 
 // ── 루트: 대시보드 HTML ───────────────────────────────
+// ── QA TEST: Playwright 자동화 ────────────────────────
+const qaResultsFile   = path.join(__dirname, 'qa-results.json');
+const qaScreenshotDir = path.join(__dirname, 'public', 'qa-screenshots');
+if (!fs.existsSync(qaScreenshotDir)) fs.mkdirSync(qaScreenshotDir, { recursive: true });
+
+let qaResults = [];
+if (fs.existsSync(qaResultsFile)) {
+  try { qaResults = JSON.parse(fs.readFileSync(qaResultsFile, 'utf8')); } catch {}
+}
+function saveQaResults() {
+  fs.writeFileSync(qaResultsFile, JSON.stringify(qaResults.slice(-50), null, 2));
+}
+
+// AI에서 Playwright 스크립트 생성
+async function generatePlaywrightScript(testPrompt, targetUrl) {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) throw new Error('OPENROUTER_API_KEY 없음');
+
+  const systemMsg = `You are a QA automation expert. Generate a complete, runnable Node.js Playwright script.
+Rules:
+- Use CommonJS require (not ESM import)
+- Use playwright (not @playwright/test)
+- Target URL: ${targetUrl || 'http://localhost:4000'}
+- Take screenshots with page.screenshot({ path: '...' }) saving to these exact paths provided
+- After each major step, add await page.waitForTimeout(500)
+- Handle errors: wrap in try/catch, always close browser in finally
+- Return ONLY the raw JS code, no markdown fences, no explanation`;
+
+  const userMsg = `Generate a Playwright test for: ${testPrompt}
+
+The script must:
+1. Launch chromium (headless)
+2. Navigate to the target URL
+3. Perform the requested test steps
+4. Take screenshots at key moments (SCREENSHOT_PATHS will be injected by the runner)
+5. Log PASS or FAIL for each step to stdout
+6. Exit with code 0 on pass, 1 on fail`;
+
+  return new Promise((resolve, reject) => {
+    const body = JSON.stringify({
+      model: process.env.QA_MODEL || 'openai/gpt-4o',
+      messages: [
+        { role: 'system', content: systemMsg },
+        { role: 'user',   content: userMsg }
+      ],
+      temperature: 0.2,
+      max_tokens: 3000,
+    });
+    const options = {
+      hostname: 'openrouter.ai',
+      path: '/api/v1/chat/completions',
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'http://agent-mission-control',
+        'X-Title': 'Agent Mission Control QA',
+      }
+    };
+    let data = '';
+    const req = https.request(options, (resp) => {
+      resp.on('data', c => { data += c; });
+      resp.on('end', () => {
+        try {
+          const parsed = JSON.parse(data);
+          const content = parsed.choices?.[0]?.message?.content || '';
+          // Strip markdown fences if AI added them
+          const clean = content.replace(/^```[^\n]*\n?/m, '').replace(/```$/m, '').trim();
+          resolve(clean);
+        } catch (e) { reject(new Error('AI 응답 파싱 실패: ' + e.message)); }
+      });
+    });
+    req.on('error', reject);
+    req.write(body);
+    req.end();
+  });
+}
+
+// POST /api/qa/run
+app.post('/api/qa/run', auth, async (req, res) => {
+  const { prompt, targetUrl = 'http://localhost:4000', mode = 'direct', planSections = [] } = req.body;
+  if (!prompt && planSections.length === 0) {
+    return res.status(400).json({ error: '테스트 프롬프트 또는 섹션을 선택하세요' });
+  }
+
+  const testId  = `qa-${Date.now()}`;
+  const tmpDir  = path.join(__dirname, 'tmp');
+  if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
+
+  const scriptPath = path.join(tmpDir, `${testId}.js`);
+  const ssDir      = path.join(qaScreenshotDir, testId);
+  fs.mkdirSync(ssDir, { recursive: true });
+
+  const testPrompt = prompt || `Test plan sections: ${planSections.join(', ')}`;
+  const result = {
+    id: testId,
+    timestamp: new Date().toISOString(),
+    prompt: testPrompt,
+    targetUrl,
+    status: 'running',
+    screenshots: [],
+    log: [],
+    passed: 0,
+    failed: 0,
+  };
+  qaResults.push(result);
+  saveQaResults();
+
+  // 즉시 응답 (비동기 실행)
+  res.json({ ok: true, testId, message: '테스트 시작됨' });
+
+  // 브로드캐스트 헬퍼
+  function broadcast(type, data) {
+    const msg = JSON.stringify({ type, data, testId });
+    wss.clients.forEach(c => { if (c.readyState === 1) c.send(msg); });
+    result.log.push({ type, data });
+  }
+
+  try {
+    broadcast('qa_start', `🧪 QA 테스트 시작: ${testPrompt}`);
+    broadcast('qa_log', `🎯 대상 URL: ${targetUrl}`);
+    broadcast('qa_log', `🤖 AI로 Playwright 스크립트 생성 중...`);
+
+    // AI로 스크립트 생성
+    let script = await generatePlaywrightScript(testPrompt, targetUrl);
+
+    // 스크린샷 경로를 스크립트에 주입
+    const ssPath1 = path.join(ssDir, 'step1.png');
+    const ssPath2 = path.join(ssDir, 'step2.png');
+    const ssPath3 = path.join(ssDir, 'final.png');
+    script = script
+      .replace(/SCREENSHOT_PATH_1/g, ssPath1)
+      .replace(/SCREENSHOT_PATH_2/g, ssPath2)
+      .replace(/SCREENSHOT_PATH_3/g, ssPath3);
+
+    // playwright require 경로 보장
+    const playwrightPath = path.join(__dirname, 'node_modules', 'playwright');
+    script = `const { chromium } = require('${playwrightPath}');\n` + script.replace(/require\(['"]playwright['"]\)/g, `require('${playwrightPath}')`);
+
+    fs.writeFileSync(scriptPath, script, 'utf8');
+    broadcast('qa_log', `✅ 스크립트 생성 완료 (${script.length} bytes)`);
+    broadcast('qa_script', script);
+
+    // Playwright 실행
+    broadcast('qa_log', `▶ Playwright 실행 중...`);
+    await new Promise((resolve) => {
+      const child = spawn('node', [scriptPath], {
+        cwd: __dirname,
+        env: { ...process.env, PLAYWRIGHT_BROWSERS_PATH: path.join(__dirname, 'node_modules', 'playwright', '.local-browsers') },
+      });
+
+      child.stdout.on('data', d => {
+        const line = d.toString().trim();
+        if (line) {
+          broadcast('qa_log', line);
+          if (/PASS/i.test(line)) result.passed++;
+          if (/FAIL/i.test(line)) result.failed++;
+        }
+      });
+      child.stderr.on('data', d => {
+        const line = d.toString().trim();
+        if (line && !line.includes('DeprecationWarning')) broadcast('qa_err', line);
+      });
+      child.on('close', (code) => {
+        result.status = code === 0 ? 'passed' : 'failed';
+        resolve();
+      });
+    });
+
+    // 스크린샷 목록 수집
+    if (fs.existsSync(ssDir)) {
+      result.screenshots = fs.readdirSync(ssDir)
+        .filter(f => /\.(png|jpg)$/.test(f))
+        .map(f => `/qa-screenshots/${testId}/${f}`);
+    }
+
+    broadcast('qa_done', JSON.stringify({
+      status: result.status,
+      passed: result.passed,
+      failed: result.failed,
+      screenshots: result.screenshots,
+    }));
+  } catch (e) {
+    result.status = 'error';
+    broadcast('qa_err', `❌ QA 실행 오류: ${e.message}`);
+  } finally {
+    saveQaResults();
+    // 임시 스크립트 파일 정리
+    try { fs.unlinkSync(scriptPath); } catch {}
+  }
+});
+
+// GET /api/qa/results
+app.get('/api/qa/results', auth, (req, res) => {
+  res.json({ results: qaResults.slice(-20).reverse() });
+});
+
+// Screenshots 정적 서빙
+app.use('/qa-screenshots', express.static(qaScreenshotDir));
+
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
 });
+
 
 // ── 서버 시작 ─────────────────────────────────────────
 server.listen(PORT, '0.0.0.0', () => {

@@ -431,6 +431,148 @@ body::before {
 
 /* ── SEPARATOR ── */
 .sep { height: 1px; background: var(--border); border: none; margin: 4px 0; }
+
+/* ── ACCORDION STYLE ── */
+.model-group-details {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 8px;
+  background: var(--surface2);
+  transition: all 0.2s;
+}
+.model-group-details[open] {
+  border-color: var(--accent);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+}
+.model-group-summary {
+  padding: 12px 16px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: var(--text);
+  font-family: var(--mono);
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  user-select: none;
+}
+.model-group-summary::-webkit-details-marker { display: none; }
+.model-group-summary::after {
+  content: '▾';
+  font-size: 12px;
+  color: var(--muted2);
+  transition: transform 0.2s;
+}
+.model-group-details[open] .model-group-summary::after {
+  transform: rotate(180deg);
+  color: var(--accent);
+}
+.model-group-summary:hover {
+  background: rgba(99,102,241,0.05);
+}
+.model-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.model-item:hover {
+  background: var(--surface3);
+}
+.model-item-name {
+  flex: 1;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.model-item-price {
+  font-size: 10px;
+  font-family: var(--mono);
+  white-space: nowrap;
+}
+
+/* ── QA TEST TAB ── */
+.qa-mode-toggle { display:flex; gap:6px; margin-bottom:12px; }
+.qa-mode-btn {
+  flex: 1; padding: 9px 14px; border-radius: 8px; font-size: 11px;
+  font-weight: 800; font-family: var(--mono); cursor: pointer;
+  border: 1px solid var(--border); transition: all 0.2s;
+  background: var(--surface2); color: var(--muted2);
+}
+.qa-mode-btn.active { background: linear-gradient(135deg,#16a34a,#22c55e); color:#fff; border-color: transparent; box-shadow: 0 4px 14px rgba(34,197,94,0.3); }
+.qa-result-card {
+  border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
+  margin-bottom: 10px; background: var(--surface2);
+}
+.qa-result-hdr {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; border-bottom: 1px solid var(--border);
+}
+.qa-status-badge {
+  font-size: 9px; font-weight: 800; padding: 2px 8px; border-radius: 10px;
+  font-family: var(--mono); letter-spacing: 0.5px;
+}
+.qa-status-badge.passed  { background: rgba(34,197,94,0.2);  color: #22c55e; }
+.qa-status-badge.failed  { background: rgba(239,68,68,0.2);  color: #ef4444; }
+.qa-status-badge.running { background: rgba(99,102,241,0.2); color: var(--accent); animation: blink 0.8s infinite; }
+.qa-status-badge.error   { background: rgba(251,146,60,0.2); color: #fb923c; }
+.qa-screenshot-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px; padding: 10px 14px;
+}
+.qa-screenshot {
+  border-radius: 6px; overflow: hidden; border: 1px solid var(--border);
+  cursor: pointer; transition: transform 0.15s;
+}
+.qa-screenshot:hover { transform: scale(1.04); }
+.qa-screenshot img { width: 100%; display: block; }
+.qa-log-box {
+  background: var(--surface1); border-radius: 6px; padding: 8px 12px;
+  font-family: var(--mono); font-size: 10px; color: var(--muted2);
+  max-height: 140px; overflow-y: auto; line-height: 1.6;
+}
+</style>
+.deploy-select {
+  display: flex;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 3px;
+  gap: 3px;
+  margin-bottom: 12px;
+}
+.deploy-opt {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted2);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.2s;
+  user-select: none;
+}
+.deploy-opt i { font-style: normal; font-size: 14px; }
+.deploy-opt.active {
+  background: var(--surface3);
+  color: var(--text);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+.deploy-opt.active.pr { color: var(--accent); }
+.deploy-opt.active.main { color: #f97316; }
 </style>
 </head>
 <body>
@@ -651,8 +793,18 @@ body::before {
             <div style="display:flex;gap:6px">
               <button class="form-btn" onclick="selectAllSessions(true)" style="background:var(--surface2);border:1px solid var(--border);color:var(--muted2);font-size:9px">전체선택</button>
               <button class="form-btn" onclick="selectAllSessions(false)" style="background:var(--surface2);border:1px solid var(--border);color:var(--muted2);font-size:9px">전체해제</button>
-              <div style="flex:1"></div>
+            <div style="flex:1"></div>
               <button class="form-btn" id="orch-run-btn" onclick="runOrchestration()" style="background:linear-gradient(135deg,var(--purple),var(--accent));min-width:80px">▶ RUN</button>
+            </div>
+          </div>
+
+          <!-- Deployment Target Selection -->
+          <div class="deploy-select">
+            <div id="deploy-pr" class="deploy-opt active pr" onclick="setDeployTarget('pr')">
+              <i>🎋</i> PR 브랜치 생성
+            </div>
+            <div id="deploy-main" class="deploy-opt main" onclick="setDeployTarget('main')">
+              <i>🚀</i> 메인 직접 배포
             </div>
           </div>
 
@@ -689,6 +841,75 @@ body::before {
         </div>
       </div>
 
+
+      <!-- TAB: QA TEST -->
+      <div class="tab-pane" id="pane-qa">
+        <div class="missions-pane">
+
+          <!-- Header -->
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+            <div style="display:flex;align-items:center;gap:7px">
+              <div class="card-bar" style="background:#22c55e"></div>
+              <div class="card-lbl">🧪 QA TEST — PLAYWRIGHT 자동화</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <span style="font-size:9px;background:#16a34a;color:#fff;padding:2px 7px;border-radius:10px">PLAYWRIGHT</span>
+              <div style="font-size:9px;color:var(--muted2);font-family:var(--mono)" id="qa-status-badge">IDLE</div>
+            </div>
+          </div>
+
+          <!-- Mode Toggle -->
+          <div class="qa-mode-toggle">
+            <button id="qa-plan-btn" class="qa-mode-btn active" onclick="setQaMode('plan')">📋 PLAN 섹션 테스트</button>
+            <button id="qa-direct-btn" class="qa-mode-btn" onclick="setQaMode('direct')">✍️ 직접 테스트 지시</button>
+          </div>
+
+          <!-- Plan Mode -->
+          <div class="add-mission-card" id="qa-plan-section" style="margin-bottom:12px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+              <div class="add-mission-title">PLAN.MD 테스트 섹션 선택</div>
+              <button class="form-btn" onclick="loadQaPlanSessions()" style="background:var(--surface2);border:1px solid var(--border);color:var(--muted2);padding:3px 10px;font-size:9px">↻ RELOAD</button>
+            </div>
+            <div id="qa-session-list" style="display:flex;flex-direction:column;gap:5px;max-height:180px;overflow-y:auto;margin-bottom:10px">
+              <div style="color:var(--muted2);font-size:10px;font-family:var(--mono)">plan.md 로드 중...</div>
+            </div>
+          </div>
+
+          <!-- Direct Mode -->
+          <div class="add-mission-card" id="qa-direct-section" style="margin-bottom:12px;display:none">
+            <div class="add-mission-title" style="margin-bottom:8px">✍️ 자연어로 테스트 내용 기술</div>
+            <textarea id="qa-prompt-input" placeholder="예: '로그인 버튼 클릭 → 대시보드 접속 확인 → 모델 선택 후 실행 테스트'&#10;예: 'QA TEST 탭이 열리고 버튼들이 정상 작동하는지 확인'"
+              style="width:100%;height:90px;background:var(--surface1);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:8px;font-family:var(--mono);font-size:11px;resize:vertical;box-sizing:border-box"></textarea>
+          </div>
+
+          <!-- Target URL + Run Button -->
+          <div style="display:flex;gap:6px;margin-bottom:14px">
+            <input class="form-input" id="qa-target-url" placeholder="테스트 URL (예: http://localhost:4000)" value="http://localhost:4000" style="flex:2">
+            <button class="form-btn" id="qa-run-btn" onclick="runQaTest()" style="background:linear-gradient(135deg,#16a34a,#22c55e);flex:1;min-width:80px">▶ RUN TEST</button>
+          </div>
+
+          <!-- Live Log -->
+          <div style="margin-bottom:12px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+              <div style="font-size:9px;font-weight:800;color:var(--muted2);font-family:var(--mono);letter-spacing:1px">LIVE LOG</div>
+              <button onclick="document.getElementById('qa-live-log').innerHTML=''" style="font-size:9px;background:none;border:none;color:var(--muted2);cursor:pointer">CLEAR</button>
+            </div>
+            <div class="qa-log-box" id="qa-live-log">// QA 테스트를 실행하면 실시간 로그가 여기에 표시됩니다.</div>
+          </div>
+
+          <!-- Results Panel -->
+          <div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+              <div style="font-size:9px;font-weight:800;color:var(--muted2);font-family:var(--mono);letter-spacing:1px">TEST RESULTS</div>
+              <button onclick="loadQaResults()" style="font-size:9px;background:var(--surface2);border:1px solid var(--border);color:var(--muted2);padding:2px 8px;border-radius:5px;cursor:pointer">↻ 새로고침</button>
+            </div>
+            <div id="qa-results-list">
+              <div style="color:var(--muted2);font-size:10px;font-family:var(--mono);text-align:center;padding:20px">테스트 결과가 없습니다</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
 
       <!-- TAB: SHELL (history) -->
       <div class="tab-pane" id="pane-shell" style="flex-direction:column">
@@ -826,6 +1047,10 @@ function switchTab(name, el) {
     renderPipelineSteps([]);
     loadPlanSessions();
     loadAgentConfig();
+  }
+  if (name === 'qa') {
+    loadQaPlanSessions();
+    loadQaResults();
   }
 }
 
@@ -1075,6 +1300,19 @@ function renderPipelineSteps(agentStates = []) {
 
 /* ── ORCH MODE TOGGLE (v4.0) ─────────────────────────── */
 let orchMode = 'plan';
+let deployTarget = 'pr';
+
+function setDeployTarget(t) {
+  deployTarget = t;
+  const pr = document.getElementById('deploy-pr');
+  const main = document.getElementById('deploy-main');
+  pr.classList.remove('active');
+  main.classList.remove('active');
+  if (t === 'pr') pr.classList.add('active');
+  else main.classList.add('active');
+  showToast(`${t === 'pr' ? 'PR 브랜치' : '메인 배포'} 모드 선택됨`, 'ok');
+}
+
 function setOrchMode(mode) {
   orchMode = mode;
   document.getElementById('orch-plan-section').style.display    = mode === 'plan'   ? '' : 'none';
@@ -1136,10 +1374,10 @@ async function runOrchestration() {
   // 터미널 탭으로 전환하여 실시간 로그 확인
   document.querySelector('.tab-btn[onclick*=terminal]')?.click();
   addLog(`${'━'.repeat(30)}`, 'system');
-  addLog(`🛰 오케스트레이션 시작 — Sessions [${sessions.join(', ')}]`, 'start');
+  addLog(`🛰 오케스트레이션 시작 (Sessions: [${sessions.join(', ')}], Target: ${deployTarget})`, 'start');
 
   try {
-    const r = await api('/api/orchestrate', { method: 'POST', body: { sessions } });
+    const r = await api('/api/orchestrate', { method: 'POST', body: { sessions, deployTarget } });
     const d = await r.json();
     if (!r.ok) {
       addLog(`❌ 오케스트레이션 실패: ${d.error}`, 'error');
@@ -1179,11 +1417,11 @@ async function runDirectOrchestration() {
 
   document.querySelector('.tab-btn[onclick*=terminal]')?.click();
   addLog(`${'━'.repeat(30)}`, 'system');
-  addLog(`🚀 직접 명령 시작`, 'start');
+  addLog(`🚀 직접 명령 시작 (Target: ${deployTarget})`, 'start');
   addLog(`📝 ${prompt}`, 'system');
 
   try {
-    const r = await api('/api/orchestrate/direct', { method: 'POST', body: { prompt, taskTitle } });
+    const r = await api('/api/orchestrate/direct', { method: 'POST', body: { prompt, taskTitle, deployTarget } });
     const d = await r.json();
     if (!r.ok) {
       addLog(`❌ 실패: ${d.error}`, 'error'); showToast(d.error, 'err');
@@ -1209,39 +1447,185 @@ async function runDirectOrchestration() {
   }
 }
 
+/* ── QA TEST TAB ─────────────────────────────────── */
+let qaMode = 'plan';
+
+function setQaMode(m) {
+  qaMode = m;
+  document.getElementById('qa-plan-btn').classList.toggle('active', m === 'plan');
+  document.getElementById('qa-direct-btn').classList.toggle('active', m === 'direct');
+  document.getElementById('qa-plan-section').style.display  = m === 'plan'   ? '' : 'none';
+  document.getElementById('qa-direct-section').style.display = m === 'direct' ? '' : 'none';
+  if (m === 'plan') loadQaPlanSessions();
+}
+
+function qaLog(msg, cls = '') {
+  const box = document.getElementById('qa-live-log');
+  const line = document.createElement('div');
+  line.style.cssText = cls === 'err'     ? 'color:var(--error)'
+                     : cls === 'success' ? 'color:var(--success)'
+                     : cls === 'script'  ? 'color:var(--muted2);font-size:9px;white-space:pre;overflow-x:auto'
+                     : '';
+  line.textContent = msg;
+  box.appendChild(line);
+  box.scrollTop = box.scrollHeight;
+}
+
+async function loadQaPlanSessions() {
+  const container = document.getElementById('qa-session-list');
+  container.innerHTML = '<div style="color:var(--muted2);font-size:10px;font-family:var(--mono)">로드 중...</div>';
+  try {
+    const r = await api('/api/plan');
+    if (!r.ok) { container.innerHTML = '<div style="color:var(--warn);font-size:10px">API 오류</div>'; return; }
+    const d = await r.json();
+    if (!d.exists || !d.sessions?.length) {
+      container.innerHTML = '<div style="color:var(--muted2);font-size:10px;font-family:var(--mono)">plan.md 없음 또는 세션 미정의</div>';
+      return;
+    }
+    container.innerHTML = d.sessions.map(s =>
+      `<label style="display:flex;align-items:center;gap:8px;padding:5px 8px;background:var(--surface1);border-radius:5px;cursor:pointer;border:1px solid var(--border)">
+        <input type="checkbox" value="${s.number}" style="accent-color:#22c55e;width:14px;height:14px">
+        <span style="font-size:10px;font-family:var(--mono)"><span style="color:#22c55e;font-weight:800">Session ${s.number}</span></span>
+        <span style="font-size:10px;color:var(--muted2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.title}</span>
+      </label>`
+    ).join('');
+  } catch {
+    container.innerHTML = '<div style="color:var(--error);font-size:10px">로드 실패</div>';
+  }
+}
+
+async function runQaTest() {
+  const targetUrl = document.getElementById('qa-target-url').value.trim() || 'http://localhost:4000';
+  const btn = document.getElementById('qa-run-btn');
+  const badge = document.getElementById('qa-status-badge');
+  const logBox = document.getElementById('qa-live-log');
+
+  let prompt = '', planSections = [];
+  if (qaMode === 'direct') {
+    prompt = document.getElementById('qa-prompt-input').value.trim();
+    if (!prompt) { showToast('테스트 내용을 입력하세요', 'err'); return; }
+  } else {
+    const checked = [...document.querySelectorAll('#qa-session-list input[type=checkbox]:checked')];
+    if (!checked.length) { showToast('테스트할 섹션을 선택하세요', 'err'); return; }
+    planSections = checked.map(cb => parseInt(cb.value));
+    prompt = `Plan sections ${planSections.join(', ')} 기능을 브라우저에서 테스트해줘`;
+  }
+
+  logBox.innerHTML = '';
+  btn.disabled = true; btn.textContent = '⏳ 실행 중...';
+  badge.textContent = 'RUNNING'; badge.style.color = 'var(--accent)';
+  qaLog(`🧪 QA 테스트 시작`);
+  qaLog(`🎯 URL: ${targetUrl}`);
+
+  try {
+    const r = await api('/api/qa/run', { method: 'POST', body: { prompt, planSections, targetUrl, mode: qaMode } });
+    if (!r.ok) { const e = await r.json(); throw new Error(e.error); }
+    const d = await r.json();
+    qaLog(`📡 ${d.message} (ID: ${d.testId})`);
+    showToast('QA 테스트 시작됨!', 'ok');
+  } catch (e) {
+    qaLog(`❌ 오류: ${e.message}`, 'err');
+    btn.disabled = false; btn.textContent = '▶ RUN TEST';
+    badge.textContent = 'ERROR'; badge.style.color = 'var(--error)';
+  }
+}
+
+// WebSocket에서 QA 이벤트 수신 처리 (ws.onmessage에 추가됨)
+function handleQaWsMessage(msg) {
+  const logBox = document.getElementById('qa-live-log');
+  if (!logBox) return;
+  const badge = document.getElementById('qa-status-badge');
+  const btn   = document.getElementById('qa-run-btn');
+
+  if (msg.type === 'qa_start')  { qaLog(`\n${msg.data}`); }
+  if (msg.type === 'qa_log')    { qaLog(msg.data); }
+  if (msg.type === 'qa_err')    { qaLog(msg.data, 'err'); }
+  if (msg.type === 'qa_script') { qaLog('── GENERATED SCRIPT ──\n' + msg.data, 'script'); }
+  if (msg.type === 'qa_done') {
+    const result = JSON.parse(msg.data);
+    const ok = result.status === 'passed';
+    badge.textContent = ok ? 'PASSED ✅' : 'FAILED ❌';
+    badge.style.color = ok ? 'var(--success)' : 'var(--error)';
+    btn.disabled = false; btn.textContent = '▶ RUN TEST';
+    qaLog(`\n🏁 테스트 완료: ${result.status.toUpperCase()} | PASS: ${result.passed} / FAIL: ${result.failed}`, ok ? 'success' : 'err');
+    if (result.screenshots?.length) {
+      qaLog(`📸 스크린샷 ${result.screenshots.length}개 캡처됨`);
+    }
+    setTimeout(() => loadQaResults(), 500);
+  }
+}
+
+async function loadQaResults() {
+  const list = document.getElementById('qa-results-list');
+  try {
+    const r = await api('/api/qa/results');
+    if (!r.ok) throw new Error();
+    const { results } = await r.json();
+    if (!results?.length) {
+      list.innerHTML = '<div style="color:var(--muted2);font-size:10px;font-family:var(--mono);text-align:center;padding:20px">테스트 결과가 없습니다</div>';
+      return;
+    }
+    list.innerHTML = results.map(r => {
+      const d = new Date(r.timestamp).toLocaleString('ko-KR');
+      const statusColor = r.status === 'passed' ? '#22c55e' : r.status === 'failed' ? '#ef4444' : '#fb923c';
+      const screenshots = r.screenshots?.map(s =>
+        `<div class="qa-screenshot" onclick="window.open('${s}','_blank')">
+          <img src="${s}" alt="screenshot" onerror="this.parentElement.style.display='none'">
+        </div>`
+      ).join('') || '';
+      return `
+        <div class="qa-result-card">
+          <div class="qa-result-hdr">
+            <span style="font-size:13px">🧪</span>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:10px;font-family:var(--mono);color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(r.prompt)}</div>
+              <div style="font-size:9px;color:var(--muted2);font-family:var(--mono)">${d} • ${r.targetUrl}</div>
+            </div>
+            <span class="qa-status-badge ${r.status}" style="color:${statusColor}">${r.status.toUpperCase()}</span>
+            <span style="font-size:9px;color:var(--success);font-family:var(--mono)">P:${r.passed||0}</span>
+            <span style="font-size:9px;color:var(--error);font-family:var(--mono)">F:${r.failed||0}</span>
+          </div>
+          ${screenshots ? `<div class="qa-screenshot-grid">${screenshots}</div>` : ''}
+        </div>`;
+    }).join('');
+  } catch {
+    list.innerHTML = '<div style="color:var(--error);font-size:10px;text-align:center;padding:10px">결과 로드 실패</div>';
+  }
+}
+
 async function loadDynamicModels() {
   const browser = document.getElementById('model-browser');
   const groups  = document.getElementById('model-groups');
   browser.style.display = 'block';
-  groups.innerHTML = '<div style="color:var(--muted2);font-size:10px;font-family:var(--mono)">OpenRouter 모델 조회 중...</div>';
+  groups.innerHTML = '<div style="color:var(--muted2);font-size:10px;font-family:var(--mono);text-align:center;padding:10px">OpenRouter 모델 조회 중...</div>';
 
   try {
     const r = await api('/api/models');
     if (!r.ok) throw new Error('API 오류');
     const data = await r.json();
 
-    groups.innerHTML = Object.entries(data.grouped || {}).map(([key, group]) =>
-      `<div style="border:1px solid var(--border);border-radius:6px;overflow:hidden">
-        <div style="background:var(--surface2);padding:5px 10px;font-size:9px;font-weight:800;letter-spacing:1px;color:var(--muted2);font-family:var(--mono)">${group.label}</div>
+    groups.innerHTML = Object.entries(data.grouped || {}).map(([key, group], idx) =>
+      `<details class="model-group-details"${idx === 0 ? ' open' : ''}>
+        <summary class="model-group-summary">${group.label} <span style="font-size:9px;color:var(--muted2);font-weight:400;margin-left:auto;margin-right:10px">${group.models.length} Models</span></summary>
         ${group.models.map(m =>
-          `<div style="display:flex;align-items:center;gap:8px;padding:5px 10px;border-top:1px solid var(--border);cursor:pointer" onclick="applyModelToInput('${m.id}')" title="클릭하면 선택된 에이전트 입력창에 복사">
-            <span style="font-size:10px;flex:1;font-family:var(--mono);color:var(--text)">${m.name}</span>
-            <span style="font-size:9px;color:var(--success);font-family:var(--mono);flex-shrink:0">in: $${m.inputPrice}</span>
-            <span style="font-size:9px;color:var(--warn);font-family:var(--mono);flex-shrink:0">out: $${m.outputPrice}</span>
+          `<div class="model-item" onclick="applyModelToInput('${m.id}')" title="클릭하면 선택된 에이전트 입력창에 복사">
+            <span class="model-item-name">${m.name}</span>
+            <span class="model-item-price" style="color:var(--success)">$${m.inputPrice}</span>
+            <span class="model-item-price" style="color:var(--warn)">$${m.outputPrice}</span>
             <span style="font-size:8px;color:var(--muted2);font-family:var(--mono)">/1M</span>
           </div>`
         ).join('')}
-      </div>`
+      </details>`
     ).join('');
 
     if (data.fallback) {
-      groups.insertAdjacentHTML('afterbegin', '<div style="color:var(--warn);font-size:9px;padding:4px 8px;margin-bottom:6px">⚠️ API 오류로 오프라인 목록 표시 중</div>');
+      groups.insertAdjacentHTML('afterbegin', '<div style="color:var(--warn);font-size:9px;padding:4px 8px;margin-bottom:6px;text-align:center">⚠️ API 오류로 오프라인 목록 표시 중</div>');
     } else {
-      const cachedAtEl = `<div style="color:var(--muted2);font-size:9px;margin-bottom:6px;font-family:var(--mono)">총 ${data.totalModels}개 모델 · ${new Date(data.cachedAt).toLocaleTimeString('ko-KR')} 기준</div>`;
+      const cachedAtEl = `<div style="color:var(--muted2);font-size:9px;margin-bottom:8px;font-family:var(--mono);text-align:center">총 ${data.totalModels}개 모델 · ${new Date(data.cachedAt).toLocaleTimeString('ko-KR')} 기준</div>`;
       groups.insertAdjacentHTML('afterbegin', cachedAtEl);
     }
   } catch (e) {
-    groups.innerHTML = `<div style="color:var(--error);font-size:10px">조회 실패: ${e.message}</div>`;
+    groups.innerHTML = `<div style="color:var(--error);font-size:10px;text-align:center;padding:10px">조회 실패: ${e.message}</div>`;
   }
 }
 
@@ -1363,17 +1747,17 @@ async function openAgentPicker(role, anchorEl) {
     return;
   }
 
-  content.innerHTML = Object.entries(data.grouped).map(([, group]) => `
-    <div style="margin-bottom:10px">
-      <div style="font-size:9px;font-weight:800;color:var(--muted2);letter-spacing:1px;font-family:var(--mono);padding:4px 0">${group.label}</div>
+  content.innerHTML = Object.entries(data.grouped).map(([, group], idx) => `
+    <details class="model-group-details"${idx === 0 ? ' open' : ''}>
+      <summary class="model-group-summary">${group.label} <span style="font-size:9px;color:var(--muted2);font-weight:400;margin-left:auto;margin-right:10px">${group.models.length} Models</span></summary>
       ${group.models.map(m => `
-        <div onclick="pickModel('${m.id}')" style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:6px;cursor:pointer;border:1px solid var(--border);margin-bottom:4px;transition:background 0.15s" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
-          <span style="flex:1;font-family:var(--mono);font-size:12px;color:var(--text)">${m.name}</span>
-          <span style="font-size:10px;color:var(--success);font-family:var(--mono)">in $${m.inputPrice}</span>
-          <span style="font-size:10px;color:var(--warn);font-family:var(--mono)">out $${m.outputPrice}</span>
-          <span style="font-size:9px;color:var(--muted2)">/1M</span>
+        <div onclick="pickModel('${m.id}')" class="model-item">
+          <span class="model-item-name">${m.name}</span>
+          <span class="model-item-price" style="color:var(--success)">$${m.inputPrice}</span>
+          <span class="model-item-price" style="color:var(--warn)">$${m.outputPrice}</span>
+          <span style="font-size:9px;color:var(--muted2);font-family:var(--mono)">/1M</span>
         </div>`).join('')}
-    </div>`).join('');
+    </details>`).join('');
 }
 
 async function pickModel(modelId) {
@@ -1473,6 +1857,9 @@ function connectWS() {
       const msg = JSON.parse(e.data);
       const type = msg.type || 'log';
       const lines = String(msg.data || '').split('\n');
+      // QA 이벤트는 QA 패널로 라우팅, 터미널 로그에서 제외
+      if (type && type.startsWith('qa_')) { handleQaWsMessage(msg); return; }
+
       lines.forEach(ln => { if (ln.trim()) addLog(ln, type); });
 
       if (type === 'budget_exceeded') {
