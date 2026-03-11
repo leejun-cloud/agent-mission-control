@@ -987,9 +987,13 @@ app.post('/api/qa/run', auth, async (req, res) => {
       .replace(/SCREENSHOT_PATH_2/g, ssPath2)
       .replace(/SCREENSHOT_PATH_3/g, ssPath3);
 
-    // playwright require 경로 보장
+    // playwright require 경로 보장 (상태 경로가 아닌 절대 경로로 치환)
     const playwrightPath = path.join(__dirname, 'node_modules', 'playwright');
-    script = `const { chromium } = require('${playwrightPath}');\n` + script.replace(/require\(['"]playwright['"]\)/g, `require('${playwrightPath}')`);
+    if (!script.includes('const { chromium }') && !script.includes('require(\'playwright\')')) {
+        script = `const { chromium } = require('${playwrightPath}');\n` + script;
+    } else {
+        script = script.replace(/['"]playwright['"]/g, `'${playwrightPath}'`);
+    }
 
     fs.writeFileSync(scriptPath, script, 'utf8');
     broadcast('qa_log', `✅ 스크립트 생성 완료 (${script.length} bytes)`);

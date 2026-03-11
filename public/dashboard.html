@@ -572,6 +572,48 @@ body::before {
 }
 .deploy-opt.active.pr { color: var(--accent); }
 .deploy-opt.active.main { color: #f97316; }
+
+/* v4.2 QA Action Toolbar */
+.qa-action-toolbar {
+  display: none;
+  margin-top: 15px;
+  padding: 16px;
+  background: var(--surface2);
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(99,102,241,0.15);
+  animation: fadeUp 0.3s ease;
+}
+.qa-action-hdr {
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--accent);
+  letter-spacing: 2px;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.qa-action-btns {
+  display: flex;
+  gap: 10px;
+}
+.qa-action-btn {
+  flex: 1;
+  padding: 10px;
+  border: none;
+  border-radius: 8px;
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.qa-action-btn:hover { transform: translateY(-2px); filter: brightness(1.1); }
 </style>
 </head>
 <body>
@@ -895,6 +937,18 @@ body::before {
               <button onclick="document.getElementById('qa-live-log').innerHTML=''" style="font-size:9px;background:none;border:none;color:var(--muted2);cursor:pointer">CLEAR</button>
             </div>
             <div class="qa-log-box" id="qa-live-log">// QA 테스트를 실행하면 실시간 로그가 여기에 표시됩니다.</div>
+          </div>
+
+          <!-- v4.2: QA Action Toolbar (Fails Only) -->
+          <div id="qa-action-toolbar" class="qa-action-toolbar">
+            <div class="qa-action-hdr">
+              <span style="font-size:12px">🛠</span> NEXT ACTIONS
+            </div>
+            <div class="qa-action-btns">
+              <button id="btn-qa-plan" class="qa-action-btn" onclick="qaAppendPlan()" style="background:#3b82f6">📝 보고 및 Plan 추가</button>
+              <button id="btn-qa-autofix" class="qa-action-btn" onclick="qaAutoFix()" style="background:var(--accent)">⚡️ 자동 수정 (Auto-Fix)</button>
+            </div>
+            <div id="qa-action-msg" style="font-size:9px; color:var(--muted2); margin-top:10px; text-align:center; font-family:var(--mono)"></div>
           </div>
 
           <!-- Results Panel -->
@@ -1588,7 +1642,7 @@ function handleQaWsMessage(msg) {
          actionToolbar.style.display = 'block';
          // 에러 정보 저장 (전역 변수로 임시 보관)
          window.__lastQaError = {
-           log: document.getElementById('qa-res-out')?.innerText || 'No log found',
+           log: document.getElementById('qa-live-log')?.innerText || 'No log found',
            msg: result.status 
          };
          document.getElementById('qa-action-msg').textContent = '자동 수정 또는 수동 보고를 선택해주세요.';
