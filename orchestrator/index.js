@@ -1,18 +1,18 @@
 /**
- * Orchestrator Main Pipeline (v4.0)
+ * Orchestrator Main Pipeline (v4.1)
  *
  * 실행 흐름:
  *   [1. ARCHITECT  o3.2]      plan.md → 프로젝트 구조 설계도
  *   [2. ORCHESTRATOR Sonnet]  설계도 → N개 태스크 분해 & 워커 할당
  *   [3. WORKERS Kimi×N]       태스크 병렬 코딩
  *   [4. DESIGNER Gemini]      UI 코드 디자인 검토
- *   [5. REVIEWER Qwen]        전수 보안/품질 검토 + 교육용 상세 리뷰 (v4.0)
+ *   [5. REVIEWER Qwen]        전수 보안/품질 검토 + 교육용 상세 리뷰 (v4.1)
  *   [6. FILE WRITER]          코드 파일 시스템에 자동 적용
  *   [7. GITHUB PR]            자동 브랜치 생성 + PR 오픈
  *   [8. NOTIFIER]             Slack 완료 알림
  *
  * 사용법: node orchestrator/index.js --plan ./plan.md --session 1 [--project /root/my-project]
- * v4.0 신규: runDirect() 함수 — plan.md 없이 직접 프롬프트로 실행
+ * v4.1 신규: runDirect() 함수 — plan.md 없이 직접 프롬프트로 실행
  */
 
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
@@ -424,7 +424,7 @@ function parseJsonSafe(text) {
   }
 }
 
-/* ── runDirect: plan.md 없이 직접 프롬프트로 돌림 (v4.0) ─ */
+/* ── runDirect: plan.md 없이 직접 프롬프트로 돌림 (v4.1) ─ */
 async function runDirect({ prompt, taskTitle, projectRoot, broadcast, onAgentStart, onAgentDone }) {
   const log = (msg, type = 'system') => {
     console.log(`[Direct] ${msg}`);

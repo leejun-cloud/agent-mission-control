@@ -1,12 +1,13 @@
 /**
- * Agent Mission Control Server (v4.0)
+ * Agent Mission Control Server (v4.1)
  * 자율형 AI 오케스트라 플랫폼 — 독립 프로젝트
  *
- * v3.0 → v4.0 변경사항:
+ * v3.0 → v4.1 변경사항:
  *   - 실시간 OpenRouter 모델 목록 조회 (회사별 그룹화, 가격 포함) (/api/models)
  *   - 다중 세션 동시 오케스트레이션 (/api/orchestrate — sessions[] 배열 지원)
  *   - 직접 프롬프트 실행 (plan.md 없이 명령만으로) (/api/orchestrate/direct)
  *   - 교육용 코드 리뷰 에이전트 (detailed_review)
+ *   - 각 회사별 상위 10개 모델 확장 (v4.1)
  *
  * 실행: node server.js
  * 접속: http://YOUR_SERVER_IP:4000
@@ -543,31 +544,31 @@ app.post('/api/agents/config', auth, (req, res) => {
 
 const MODEL_PRIORITY = {
   'openai':      { label: 'OpenAI',          emoji: '🤖', preferred: [
-    'openai/o3-mini', 'openai/o1', 'openai/gpt-4o', 'openai/gpt-4o-mini', 'openai/gpt-4-turbo', 'openai/gpt-4', 'openai/o1-mini', 'openai/o1-preview', 'openai/gpt-3.5-turbo'
+    'openai/o3-mini', 'openai/o1', 'openai/gpt-4o', 'openai/gpt-4o-mini', 'openai/gpt-4-turbo', 'openai/o1-mini', 'openai/o1-preview', 'openai/gpt-4', 'openai/gpt-4-0314', 'openai/gpt-3.5-turbo'
   ] },
   'anthropic':   { label: 'Anthropic',       emoji: '🧠', preferred: [
-    'anthropic/claude-3.7-sonnet', 'anthropic/claude-3.5-sonnet', 'anthropic/claude-3.5-haiku', 'anthropic/claude-3-opus', 'anthropic/claude-3-sonnet', 'anthropic/claude-3-haiku'
+    'anthropic/claude-3.7-sonnet', 'anthropic/claude-3.5-sonnet', 'anthropic/claude-3.5-haiku', 'anthropic/claude-3-opus', 'anthropic/claude-3-sonnet', 'anthropic/claude-3-haiku', 'anthropic/claude-2.1', 'anthropic/claude-2.0', 'anthropic/claude-instant-1.2', 'anthropic/claude-3-opus:beta'
   ] },
   'google':      { label: 'Google',          emoji: '✨', preferred: [
-    'google/gemini-2.5-pro', 'google/gemini-2.0-pro-exp-02-05', 'google/gemini-2.0-flash-001', 'google/gemini-1.5-pro', 'google/gemini-1.5-flash', 'google/gemini-2.0-flash-lite-001'
+    'google/gemini-2.0-pro-exp-02-05', 'google/gemini-2.0-flash-001', 'google/gemini-pro-1.5', 'google/gemini-flash-1.5', 'google/gemini-2.0-flash-lite-preview-02-05', 'google/gemini-pro', 'google/gemini-flash', 'google/gemini-1.0-pro', 'google/palm-2-chat-bison', 'google/palm-2-code-chat-bison'
   ] },
   'deepseek':    { label: 'DeepSeek',        emoji: '🔬', preferred: [
-    'deepseek/deepseek-r1', 'deepseek/deepseek-chat', 'deepseek/deepseek-v3', 'deepseek/deepseek-r1-distill-llama-70b', 'deepseek/deepseek-r1-distill-qwen-32b'
-  ] },
-  'meta':        { label: 'Meta (Llama)',    emoji: '🦙', preferred: [
-    'meta-llama/llama-3.3-70b-instruct', 'meta-llama/llama-3.1-405b-instruct', 'meta-llama/llama-3.1-70b-instruct', 'meta-llama/llama-3.1-8b-instruct', 'meta-llama/llama-3.2-3b-instruct', 'meta-llama/llama-3-70b-instruct'
+    'deepseek/deepseek-r1', 'deepseek/deepseek-chat', 'deepseek/deepseek-v3', 'deepseek/deepseek-r1-distill-llama-70b', 'deepseek/deepseek-r1-distill-qwen-32b', 'deepseek/deepseek-r1-distill-llama-8b', 'deepseek/deepseek-coder'
   ] },
   'qwen':        { label: 'Qwen (Alibaba)',  emoji: '🐉', preferred: [
-    'qwen/qwen-max', 'qwen/qwen-plus', 'qwen/qwen-2.5-coder-32b-instruct', 'qwen/qwen-2.5-72b-instruct', 'qwen/qwq-32b'
+    'qwen/qwen-max', 'qwen/qwen-plus', 'qwen/qwen-2.5-coder-32b-instruct', 'qwen/qwen-2.5-72b-instruct', 'qwen/qwq-32b', 'qwen/qwen-2.5-coder-7b-instruct', 'qwen/qwen-2-72b-instruct'
   ] },
   'moonshot':    { label: 'Moonshot (Kimi)', emoji: '🌙', preferred: [
     'moonshot/kimi-2.5', 'moonshot/kimi-v1-128k', 'moonshot/kimi-v1-32k', 'moonshot/kimi-v1-8k'
   ] },
+  'meta':        { label: 'Meta (Llama)',    emoji: '🦙', preferred: [
+    'meta-llama/llama-3.3-70b-instruct', 'meta-llama/llama-3.1-405b-instruct', 'meta-llama/llama-3.1-70b-instruct', 'meta-llama/llama-3.1-8b-instruct', 'meta-llama/llama-3.2-3b-instruct', 'meta-llama/llama-3-70b-instruct', 'meta-llama/llama-guard-3-8b'
+  ] },
   'mistral':     { label: 'Mistral',         emoji: '🌪', preferred: [
-    'mistralai/mistral-large', 'mistralai/mixtral-8x22b-instruct', 'mistralai/mistral-nemo', 'mistralai/pixtral-12b'
+    'mistralai/mistral-large', 'mistralai/mixtral-8x22b-instruct', 'mistralai/mistral-nemo', 'mistralai/pixtral-12b', 'mistralai/mistral-7b-instruct'
   ] },
   'zhipu':       { label: 'Zhipu (GLM)',     emoji: '🐼', preferred: [
-    'zhipu/glm-4-plus', 'zhipu/glm-4-flash', 'zhipu/glm-4-0520'
+    'zhipu/glm-4-plus', 'zhipu/glm-4-flash', 'zhipu/glm-4-0520', 'zhipu/glm-4-9b'
   ] },
 };
 
@@ -642,39 +643,31 @@ setInterval(fetchAndCacheModels, CACHE_TTL);
 const FALLBACK_MODELS = {
   grouped: {
     openai: { label: '🤖 OpenAI', models: [
-      { id: 'openai/gpt-4o',              name: 'GPT-4o',          inputPrice: '2.500', outputPrice: '10.000' },
-      { id: 'openai/gpt-4o-mini',         name: 'GPT-4o mini',     inputPrice: '0.150', outputPrice: '0.600' },
       { id: 'openai/o3-mini',             name: 'o3 mini',         inputPrice: '1.100', outputPrice: '4.400' },
       { id: 'openai/o1',                  name: 'o1',              inputPrice: '15.000', outputPrice: '60.000' },
-      { id: 'openai/gpt-4.1',             name: 'GPT-4.1',         inputPrice: '2.000', outputPrice: '8.000' },
+      { id: 'openai/gpt-4o',              name: 'GPT-4o',          inputPrice: '2.500', outputPrice: '10.000' },
+      { id: 'openai/gpt-4o-mini',         name: 'GPT-4o mini',     inputPrice: '0.150', outputPrice: '0.600' },
+      { id: 'openai/gpt-4-turbo',         name: 'GPT-4 Turbo',     inputPrice: '10.000', outputPrice: '30.000' },
+      { id: 'openai/o1-mini',             name: 'o1-mini',         inputPrice: '1.100', outputPrice: '4.400' },
+      { id: 'openai/o1-preview',          name: 'o1-preview',      inputPrice: '15.000', outputPrice: '60.000' },
+      { id: 'openai/gpt-4',               name: 'GPT-4',           inputPrice: '30.000', outputPrice: '60.000' },
+      { id: 'openai/gpt-3.5-turbo',       name: 'GPT-3.5 Turbo',   inputPrice: '0.500', outputPrice: '1.500' },
     ]},
     anthropic: { label: '🧠 Anthropic', models: [
-      { id: 'anthropic/claude-opus-4',       name: 'Claude Opus 4',     inputPrice: '15.000', outputPrice: '75.000' },
-      { id: 'anthropic/claude-sonnet-4',     name: 'Claude Sonnet 4',   inputPrice: '3.000', outputPrice: '15.000' },
-      { id: 'anthropic/claude-3.5-haiku',    name: 'Claude 3.5 Haiku',  inputPrice: '0.800', outputPrice: '4.000' },
-      { id: 'anthropic/claude-3.5-sonnet',   name: 'Claude 3.5 Sonnet', inputPrice: '3.000', outputPrice: '15.000' },
       { id: 'anthropic/claude-3.7-sonnet',   name: 'Claude 3.7 Sonnet', inputPrice: '3.000', outputPrice: '15.000' },
+      { id: 'anthropic/claude-3.5-sonnet',   name: 'Claude 3.5 Sonnet', inputPrice: '3.000', outputPrice: '15.000' },
+      { id: 'anthropic/claude-3.5-haiku',    name: 'Claude 3.5 Haiku',  inputPrice: '0.800', outputPrice: '4.000' },
+      { id: 'anthropic/claude-3-opus',       name: 'Claude 3 Opus',     inputPrice: '15.000', outputPrice: '75.000' },
+      { id: 'anthropic/claude-3-sonnet',     name: 'Claude 3 Sonnet',   inputPrice: '3.000', outputPrice: '15.000' },
+      { id: 'anthropic/claude-3-haiku',      name: 'Claude 3 Haiku',    inputPrice: '0.250', outputPrice: '1.250' },
+      { id: 'anthropic/claude-2.1',          name: 'Claude 2.1',        inputPrice: '8.000', outputPrice: '24.000' },
     ]},
     google: { label: '✨ Google', models: [
-      { id: 'google/gemini-2.5-pro-preview', name: 'Gemini 2.5 Pro Preview', inputPrice: '1.250', outputPrice: '10.000' },
+      { id: 'google/gemini-2.0-pro-exp-02-05', name: 'Gemini 2.0 Pro Exp', inputPrice: '0.000', outputPrice: '0.000' },
       { id: 'google/gemini-2.0-flash-001',   name: 'Gemini 2.0 Flash',       inputPrice: '0.100', outputPrice: '0.400' },
-      { id: 'google/gemini-2.5-flash-preview', name: 'Gemini 2.5 Flash',     inputPrice: '0.150', outputPrice: '0.600' },
       { id: 'google/gemini-pro-1.5',          name: 'Gemini 1.5 Pro',        inputPrice: '1.250', outputPrice: '5.000' },
       { id: 'google/gemini-flash-1.5',        name: 'Gemini 1.5 Flash',      inputPrice: '0.075', outputPrice: '0.300' },
-    ]},
-    deepseek: { label: '🔬 DeepSeek', models: [
-      { id: 'deepseek/deepseek-r1',          name: 'DeepSeek R1',       inputPrice: '0.550', outputPrice: '2.190' },
-      { id: 'deepseek/deepseek-chat',        name: 'DeepSeek V3',       inputPrice: '0.270', outputPrice: '1.100' },
-      { id: 'deepseek/deepseek-r1-zero',     name: 'DeepSeek R1 Zero',  inputPrice: '0.550', outputPrice: '2.190' },
-      { id: 'deepseek/deepseek-prover-v2',   name: 'DeepSeek Prover V2', inputPrice: '0.550', outputPrice: '2.190' },
-      { id: 'deepseek/deepseek-r1-distill-qwen-32b', name: 'R1 Distill Qwen 32B', inputPrice: '0.120', outputPrice: '0.180' },
-    ]},
-    qwen: { label: '🐉 Qwen', models: [
-      { id: 'qwen/qwen3-235b-a22b',          name: 'Qwen3 235B A22B',    inputPrice: '0.140', outputPrice: '0.600' },
-      { id: 'qwen/qwq-32b',                  name: 'QwQ 32B',           inputPrice: '0.100', outputPrice: '0.400' },
-      { id: 'qwen/qwen-2.5-coder-32b-instruct', name: 'Qwen2.5 Coder 32B', inputPrice: '0.070', outputPrice: '0.160' },
-      { id: 'qwen/qwen-max',                 name: 'Qwen Max',          inputPrice: '1.600', outputPrice: '6.400' },
-      { id: 'qwen/qwen-2.5-72b-instruct',    name: 'Qwen2.5 72B',       inputPrice: '0.130', outputPrice: '0.400' },
+      { id: 'google/gemini-2.0-flash-lite-preview-02-05', name: 'Gemini 2.0 Flash Lite', inputPrice: '0.075', outputPrice: '0.300' },
     ]},
     moonshot: { label: '🌙 Moonshot (Kimi)', models: [
       { id: 'moonshot/kimi-2.5',             name: 'Kimi 2.5',          inputPrice: '0.600', outputPrice: '2.500' },
@@ -682,11 +675,18 @@ const FALLBACK_MODELS = {
       { id: 'moonshot/kimi-v1-32k',          name: 'Kimi v1 32K',       inputPrice: '0.150', outputPrice: '0.450' },
       { id: 'moonshot/kimi-v1-8k',           name: 'Kimi v1 8K',        inputPrice: '0.140', outputPrice: '0.590' },
     ]},
+    deepseek: { label: '🔬 DeepSeek', models: [
+      { id: 'deepseek/deepseek-r1',          name: 'DeepSeek R1',       inputPrice: '0.550', outputPrice: '2.190' },
+      { id: 'deepseek/deepseek-chat',        name: 'DeepSeek V3',       inputPrice: '0.270', outputPrice: '1.100' },
+      { id: 'deepseek/deepseek-r1-distill-llama-70b', name: 'R1 Distill Llama 70B', inputPrice: '0.120', outputPrice: '0.180' },
+    ]},
+    qwen: { label: '🐉 Qwen', models: [
+      { id: 'qwen/qwen-max',                 name: 'Qwen Max',          inputPrice: '1.600', outputPrice: '6.400' },
+      { id: 'qwen/qwen-2.5-coder-32b-instruct', name: 'Qwen2.5 Coder 32B', inputPrice: '0.070', outputPrice: '0.160' },
+    ]},
     meta: { label: '🦙 Meta (Llama)', models: [
       { id: 'meta-llama/llama-3.3-70b-instruct',   name: 'Llama 3.3 70B',     inputPrice: '0.120', outputPrice: '0.300' },
       { id: 'meta-llama/llama-3.1-405b-instruct',  name: 'Llama 3.1 405B',    inputPrice: '1.000', outputPrice: '3.000' },
-      { id: 'meta-llama/llama-3.1-70b-instruct',   name: 'Llama 3.1 70B',     inputPrice: '0.200', outputPrice: '0.600' },
-      { id: 'meta-llama/llama-3.1-8b-instruct',    name: 'Llama 3.1 8B',      inputPrice: '0.050', outputPrice: '0.050' },
     ]},
     mistral: { label: '🌪 Mistral', models: [
       { id: 'mistralai/mistral-large',             name: 'Mistral Large',     inputPrice: '2.000', outputPrice: '6.000' },
@@ -712,11 +712,11 @@ app.get('/api/models', auth, async (req, res) => {
   res.json(result || FALLBACK_MODELS);
 });
 
-// ── API: 오케스트레이터 실행 (v4.0 — 다중 세션 지원) ────
+// ── API: 오케스트레이터 실행 (v4.1 — 다중 세션 지원) ────
 let activeOrchestration = null;
 
 app.post('/api/orchestrate', auth, async (req, res) => {
-  // v4.0: sessions 배열 또는 단일 sessionNumber 모두 지원
+  // v4.1: sessions 배열 또는 단일 sessionNumber 모두 지원
   const { sessionNumber, sessions, planPath: customPlanPath } = req.body;
   const sessionList = sessions
     ? (Array.isArray(sessions) ? sessions : [sessions]).map(Number)
@@ -751,7 +751,7 @@ app.post('/api/orchestrate', auth, async (req, res) => {
     for (const role of ['architect', 'orchestrator', 'worker', 'designer', 'reviewer', 'integrator']) {
       setAgentState(role, { status: 'idle', task: null, progress: 0 });
     }
-    broadcast(`🛰 오케스트레이터 v4.0 시작 — ${sessionList.length}개 세션: [${sessionList.join(', ')}]`, 'start');
+    broadcast(`🛰 오케스트레이터 v4.1 시작 — ${sessionList.length}개 세션: [${sessionList.join(', ')}]`, 'start');
 
     const { run } = require('./orchestrator/index');
     let totalCost = 0;
@@ -788,7 +788,7 @@ app.post('/api/orchestrate', auth, async (req, res) => {
   }
 });
 
-// ── API: 직접 프롬프트 실행 (v4.0 신규) ────────────────
+// ── API: 직접 프롬프트 실행 (v4.1 신규) ────────────────
 app.post('/api/orchestrate/direct', auth, async (req, res) => {
   const { prompt, taskTitle } = req.body;
   if (!prompt) return res.status(400).json({ error: 'prompt 필수' });
@@ -1059,10 +1059,10 @@ app.get('/', (req, res) => {
 
 // ── 서버 시작 ─────────────────────────────────────────
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`\n🛰  Agent Mission Control Server v4.0`);
+  console.log(`\n🛰  Agent Mission Control Server v4.1`);
   console.log(`   접속 주소: http://0.0.0.0:${PORT}`);
   console.log(`   현재 프로젝트: ${currentProject.label} (${currentProject.root}`);
-  console.log(`   ✅ v4.0: 실시간 모델 동기화, 다중 세션, 직접 프롬프트 지원`);
+  console.log(`   ✅ v4.1: 실시간 모델 동기화, 다중 세션, 직접 프롬프트 지원`);
   console.log(`   전체 프로젝트: ${projects.map(p => p.label).join(', ')}`);
   console.log(`   기본 미션: ${Object.keys(DEFAULT_MISSIONS).join(', ')}`);
   console.log(`   사용자 정의 미션: ${Object.keys(customMissions).length}개`);

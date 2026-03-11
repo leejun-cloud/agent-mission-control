@@ -581,7 +581,7 @@ body::before {
   <div class="login-card">
     <div class="login-icon">🛰</div>
     <div class="login-title">MISSION CONTROL</div>
-    <div class="login-sub">AI Agent Command Center v4.0</div>
+    <div class="login-sub">AI Agent Command Center v4.1</div>
     <input class="login-input" type="password" id="pw" placeholder="Access password..." autocomplete="current-password">
     <button class="login-btn" onclick="doLogin()">▶ ENTER SYSTEM</button>
     <div class="login-err" id="login-err"></div>
@@ -597,7 +597,7 @@ body::before {
       <div class="live-dot"></div>
       <div>
         <div class="hdr-title">🛰 AGENT MISSION CONTROL</div>
-        <div class="hdr-version">v4.0 · AI SWARM ORCHESTRATOR</div>
+        <div class="hdr-version">v4.1 · AI SWARM ORCHESTRATOR</div>
       </div>
     </div>
 
@@ -718,7 +718,7 @@ body::before {
         <div class="terminal" id="terminal">
           <div class="log-line">
             <span class="log-ts">--:--:--</span>
-            <span class="log-msg system">// Waiting for signal... Agent Mission Control v4.0 ready.</span>
+            <span class="log-msg system">// Waiting for signal... Agent Mission Control v4.1 ready.</span>
           </div>
         </div>
         <div class="shell-bar">
@@ -760,14 +760,14 @@ body::before {
         </div>
       </div>
 
-      <!-- TAB: ORCHESTRATE v4.0 -->
+      <!-- TAB: ORCHESTRATE v4.1 -->
       <div class="tab-pane" id="pane-orchestrate">
         <div class="missions-pane">
 
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
             <div style="display:flex;align-items:center;gap:7px">
               <div class="card-bar" style="background:var(--purple)"></div>
-              <div class="card-lbl">AI ORCHESTRATION PIPELINE v4.0</div>
+              <div class="card-lbl">AI ORCHESTRATION PIPELINE v4.1</div>
             </div>
             <div style="display:flex;align-items:center;gap:6px">
               <span style="font-size:9px;background:var(--purple);color:#fff;padding:2px 7px;border-radius:10px">EDUCATIONAL REVIEW</span>
@@ -824,7 +824,7 @@ body::before {
             <!-- filled by JS -->
           </div>
 
-          <!-- AI Agent Model Config (v4.0: Dynamic + grouped) -->
+          <!-- AI Agent Model Config (v4.1: Dynamic + grouped) -->
           <div class="add-mission-card">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
               <div class="add-mission-title">AI AGENT MODEL CONFIG</div>
@@ -1327,7 +1327,7 @@ function renderPipelineSteps(agentStates = []) {
   }).join('');
 }
 
-/* ── ORCH MODE TOGGLE (v4.0) ─────────────────────────── */
+/* ── ORCH MODE TOGGLE (v4.1) ─────────────────────────── */
 let orchMode = 'plan';
 let deployTarget = 'pr';
 
@@ -1390,7 +1390,7 @@ async function loadPlanSessions() {
 }
 
 async function runOrchestration() {
-  // v4.0: 체크박스에서 선택된 세션 목록 수집
+  // v4.1: 체크박스에서 선택된 세션 목록 수집
   const checked = [...document.querySelectorAll('#session-checkbox-list input[type=checkbox]:checked')];
   if (!checked.length) { showToast('하나 이상의 세션을 선택하세요.', 'err'); return; }
   const sessions = checked.map(cb => parseInt(cb.value));
@@ -1580,7 +1580,74 @@ function handleQaWsMessage(msg) {
     if (result.screenshots?.length) {
       qaLog(`📸 스크린샷 ${result.screenshots.length}개 캡처됨`);
     }
+    
+    // v4.2: 테스트 실패 시 Action Toolbar 표시
+    const actionToolbar = document.getElementById('qa-action-toolbar');
+    if (actionToolbar) {
+      if (!ok) {
+         actionToolbar.style.display = 'block';
+         // 에러 정보 저장 (전역 변수로 임시 보관)
+         window.__lastQaError = {
+           log: document.getElementById('qa-res-out')?.innerText || 'No log found',
+           msg: result.status 
+         };
+         document.getElementById('qa-action-msg').textContent = '자동 수정 또는 수동 보고를 선택해주세요.';
+      } else {
+         actionToolbar.style.display = 'none';
+      }
+    }
+
     setTimeout(() => loadQaResults(), 500);
+  }
+}
+
+/* ── v4.2 QA Action Functions ── */
+async function qaAppendPlan() {
+  const errData = window.__lastQaError;
+  if (!errData) { showToast('선택된 에러 데이터가 없습니다.', 'err'); return; }
+  
+  const btn = document.getElementById('btn-qa-plan');
+  btn.disabled = true; btn.textContent = '⏳ 기록 중...';
+  
+  try {
+    const r = await api('/api/qa/append-plan', { 
+      method: 'POST', 
+      body: { errorLog: errData.log, errorMessage: errData.msg } 
+    });
+    if (!r.ok) throw new Error('업데이트 실패');
+    showToast('plan.md에 결과가 추가되었습니다.', 'ok');
+    document.getElementById('qa-action-msg').textContent = '✅ plan.md 업데이트 완료';
+  } catch (e) {
+    showToast(e.message, 'err');
+    document.getElementById('qa-action-msg').textContent = '❌ 업데이트 실패';
+  } finally {
+    btn.disabled = false; btn.textContent = '📝 보고 및 Plan 추가';
+  }
+}
+
+async function qaAutoFix() {
+  const errData = window.__lastQaError;
+  if (!errData) { showToast('선택된 에러 데이터가 없습니다.', 'err'); return; }
+  
+  const btn = document.getElementById('btn-qa-autofix');
+  btn.disabled = true; btn.textContent = '⏳ 오케스트레이터 가동 중...';
+  
+  const prompt = `다음 QA 브라우저 테스트 에러를 해결하는 코드로 수정해주세요:\n\n[에러 요약]\n${errData.msg}\n\n[상세 로그]\n${errData.log}\n\n위 로그를 분석하고 문제가 있는 파일을 찾아 직접 수정하세요.`;
+  
+  try {
+    const r = await api('/api/orchestrate/direct', {
+      method: 'POST',
+      body: { prompt: prompt, taskTitle: 'QA 에러 자동 수정 (Auto-Fix)' }
+    });
+    if (!r.ok) throw new Error('실행 요청 실패');
+    showToast('자동 수정 오케스트레이션이 시작되었습니다!', 'ok');
+    document.getElementById('qa-action-msg').textContent = '✅ ORCHESTRATE 탭에서 자동 수정을 진행 중입니다.';
+    switchTab('pane-orchestrate'); // 오케스트레이트 탭으로 강제 이동
+  } catch (e) {
+    showToast(e.message, 'err');
+    document.getElementById('qa-action-msg').textContent = '❌ 자동 수정 실행 실패';
+  } finally {
+    btn.disabled = false; btn.textContent = '⚡️ 자동 수정 (Auto-Fix)';
   }
 }
 
