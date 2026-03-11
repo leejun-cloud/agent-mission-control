@@ -22,9 +22,30 @@ class GitHubIntegration {
   constructor(opts = {}) {
     this.projectRoot = opts.projectRoot || process.cwd();
     this.token       = opts.token || process.env.GITHUB_TOKEN;
-    this.owner       = opts.owner || process.env.GITHUB_OWNER;
-    this.repo        = opts.repo  || process.env.GITHUB_REPO;
     this.baseBranch  = opts.baseBranch || 'main';
+
+    // owner, repo가 없으면 현재 git remote에서 추출 시도
+    const detected = this._detectRepoInfo();
+    this.owner = opts.owner || process.env.GITHUB_OWNER || detected.owner;
+    this.repo  = opts.repo  || process.env.GITHUB_REPO  || detected.repo;
+  }
+
+  /**
+   * git remote -v에서 github owner/repo 추출
+   */
+  _detectRepoInfo() {
+    try {
+      const remotes = this._git('remote -v');
+      // 예: origin  https://github.com/leejun-cloud/agent-mission-control.git (fetch)
+      // 또는 origin git@github.com:leejun-cloud/agent-mission-control.git (fetch)
+      const match = remotes.match(/github\.com[:/]([^/]+)\/([^/.\s]+)/);
+      if (match) {
+        return { owner: match[1], repo: match[2].replace(/\.git$/, '') };
+      }
+    } catch {
+      // git 명령 실패 등
+    }
+    return { owner: null, repo: null };
   }
 
   /**
@@ -116,7 +137,12 @@ class GitHubIntegration {
             if (json.html_url) {
               resolve({ ok: true, url: json.html_url, number: json.number });
             } else {
-              resolve({ ok: false, error: json.message || data });
+              // GitHub 상세 에러(errors[])가 있으면 포함해서 반환
+              let msg = json.message || data;
+              if (json.errors) {
+                msg += " : " + JSON.stringify(json.errors);
+              }
+              resolve({ ok: false, error: msg });
             }
           } catch {
             resolve({ ok: false, error: data });
