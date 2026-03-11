@@ -1081,6 +1081,35 @@ async function switchProject(id) {
   }
 }
 
+async function importGitHubProject() {
+  const url = prompt('GitHub 저장소 URL을 입력하세요:\n예) https://github.com/username/repo.git');
+  if (!url || !url.trim()) return;
+
+  addLog(`📥 GitHub 저장소 가져오는 중: ${url.trim()}`, 'system');
+  showToast('⏳ 저장소 클론 중...', 'info');
+
+  try {
+    const r = await api('/api/projects/import', {
+      method: 'POST',
+      body: { url: url.trim() }
+    });
+    const d = await r.json();
+    if (r.ok) {
+      addLog(`✅ 가져오기 완료! 프로젝트 "${d.project.label}"로 전환됨`, 'success');
+      showToast(`✅ ${d.project.label} 가져오기 완료!`, 'ok');
+      await loadProjects();  // 드롭다운 목록 새로고침
+      document.getElementById('shell-cwd').textContent = d.project.root;
+      loadStatus();
+    } else {
+      addLog(`❌ 가져오기 실패: ${d.error}`, 'error');
+      showToast(`❌ ${d.error}`, 'error');
+    }
+  } catch (e) {
+    addLog(`❌ 오류: ${e.message}`, 'error');
+    showToast('❌ 네트워크 오류 발생', 'error');
+  }
+}
+
 /* ── STATUS ──────────────────────────────────────── */
 async function loadStatus() {
   try {
