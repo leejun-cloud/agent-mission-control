@@ -144,6 +144,19 @@ async function run({ planPath, sessionNumber, projectRoot, broadcast, onAgentSta
 
     log(`📦 ${taskGroups.length}개 워커 그룹 생성됨`);
 
+    // ── 2.5. REPO INDEX — 레포지토리 색인 (워커에 컨텍스트 제공) ─
+    checkKilled();
+    if (projectRoot) {
+      log('📂 [REPO INDEX] 레포지토리 색인 중...');
+      try {
+        const { indexRepository } = require('./repo-indexer');
+        indexRepository(projectRoot);
+        log('✅ [REPO INDEX] 색인 완료 — 워커 컨텍스트 준비됨', 'success');
+      } catch (e) {
+        log(`⚠️  [REPO INDEX] 색인 실패 (무시): ${e.message}`, 'warn');
+      }
+    }
+
     // ── 3. WORKERS — 병렬 코딩 ──────────────────────
     checkKilled();
     const workerResults = {};
@@ -163,7 +176,9 @@ async function run({ planPath, sessionNumber, projectRoot, broadcast, onAgentSta
     const poolResult = await pool.run(pendingGroups, async (tasks, workerId) => {
       checkKilled();
       const cacheKey = `worker-${workerId + completedGroups}-result.json`;
-      const prompt = buildWorkerPrompt(tasks, architectOutput, projectRoot);
+      const taskQuery = tasks.map(t => `${t.title || ''} ${t.description || ''} ${(t.files||[]).join(' ')}`).join(' ');
+      const repoContext = projectRoot ? buildContextString(taskQuery, projectRoot) : '';
+      const prompt = buildWorkerPrompt(tasks, architectOutput, repoContext);
 
       const result = await callAgent('worker', [
         { role: 'system', content: '당신은 시니어 풀스택 개발자입니다. 주어진 태스크의 코드를 정확히 구현하세요. 파일 경로(path)는 슬래시(/)나 점(.)으로 시작하지 않는 순수 상대경로(예: "src/app/page.tsx")만 사용하세요. 응답은 반드시 순수 JSON 형태만 출력하세요: {"files": [{"path": "...", "content": "..."}]}' },
@@ -477,7 +492,7 @@ ${session.tasks.map(t => `- ID: ${t.id}, 제목: ${t.title}, 파일: ${t.files.j
 JSON 배열: [{"id": "...", "title": "...", "files": [...], "description": "..."}]`;
 }
 
-function buildWorkerPrompt(tasks, architectOutput, projectRoot) {
+function buildWorkerPrompt(tasks, architectOutput, repoContext = '') {
   const taskList = tasks.map(t =>
     `태스크: ${t.title || t.id}\n파일: ${(t.files||[]).join(', ')}\n내용: ${t.description || ''}`
   ).join('\n\n');
@@ -485,12 +500,15 @@ function buildWorkerPrompt(tasks, architectOutput, projectRoot) {
   const archCtx = architectOutput ?
     `\n\n아키텍처 가이드:\n${JSON.stringify(architectOutput?.conventions || [], null, 2).slice(0, 800)}` : '';
 
-  return `${archCtx}
+  const ctxBlock = repoContext ? `\n\n${repoContext}` : '';
+
+  return `${archCtx}${ctxBlock}
 
 구현할 태스크:
 ${taskList}
 
 위 태스크를 완전히 구현한 코드를 제공하세요.
+기존 코드와의 일관성을 유지하고, 위 컨텍스트에 있는 함수/클래스를 중복 구현하지 마세요.
 JSON 형식: {"files": [{"path": "파일경로", "content": "전체 파일 내용"}]}`;
 }
 
@@ -581,15 +599,24 @@ async function runDirect({ prompt, taskTitle, projectRoot, broadcast, onAgentSta
     agentDone('architect', archResult.costUSD);
     log(`✅ [ARCHITECT] 완료 ($${archResult.costUSD.toFixed(4)})`);
 
-    // 2. WORKER
+    // 2. WORKER (+ 레포 컨텍스트 주입)
     log('⚡ [WORKER] 코드 구현 중...');
     agentStart('worker', '코드 구현 중...');
     const workerContext = architectOutput
       ? `\n\n아키텍처 가이드:\n${JSON.stringify(architectOutput?.conventions || [], null, 2).slice(0, 600)}`
       : '';
+    let repoCtxDirect = '';
+    if (projectRoot) {
+      try {
+        const { indexRepository } = require('./repo-indexer');
+        indexRepository(projectRoot);
+        repoCtxDirect = buildContextString(prompt, projectRoot);
+        if (repoCtxDirect) log('📂 [REPO INDEX] 레포 컨텍스트 주입됨', 'system');
+      } catch { /* 색인 실패 시 무시 */ }
+    }
     const workerResult = await callAgent('worker', [
       { role: 'system', content: '당신은 시니어 풀스택 개발자입니다. 주어진 태스크의 코드를 완벽하게 구현하세요. 파일 경로(path)는 슬래시(/)나 점(.)으로 시작하지 않는 순수 상대경로(예: "src/app/page.tsx")만 사용하세요. 응답은 반드시 순수 JSON 형태만 출력하세요: {"files": [{"path": "...", "content": "..."}]}' },
-      { role: 'user', content: `${workerContext}\n\n작업: ${prompt}\n\nJSON {"files": [{"path": "...", "content": "..."}]}로 응답` },
+      { role: 'user', content: `${workerContext}${repoCtxDirect ? '\n\n' + repoCtxDirect : ''}\n\n작업: ${prompt}\n\n기존 코드와 일관성을 유지하고 중복 구현을 피하세요.\nJSON {"files": [{"path": "...", "content": "..."}]}로 응답` },
     ], { temperature: 0.2, max_tokens: 8192 });
     tracker.record({ model: process.env.AGENT_WORKER, role: 'worker', costUSD: workerResult.costUSD, tokens: workerResult.usage.total_tokens });
     const workerFiles = parseJsonSafe(workerResult.content)?.files || [];
