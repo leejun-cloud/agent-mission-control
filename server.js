@@ -537,21 +537,80 @@ app.get('/api/plan', auth, (req, res) => {
   }
   try {
     const content = fs.readFileSync(planPath, 'utf8');
-    // 세션 목록 파싱 (간단한 ## 헤더 추출)
-    const sessions = [];
-    const lines = content.split('\n');
-    lines.forEach((line, i) => {
-      const m = line.match(/^## (.+)/);
-      if (m) {
-        const numMatch = m[1].match(/^Session\s+(\d+)/i) || m[1].match(/^(\d+)/);
-        sessions.push({
-          number: numMatch ? parseInt(numMatch[1]) : sessions.length + 1,
-          title: m[1].trim(),
-          line: i + 1,
-        });
-      }
-    });
+    // 3단계 계층 파싱 (Session → Task → Subtask)
+    let sessions = [];
+    try {
+      const { parsePlan } = require('./orchestrator/plan-parser');
+      sessions = parsePlan(planPath).sessions;
+    } catch (_) {
+      // fallback: 간단한 ## 헤더 추출
+      const lines = content.split('\n');
+      lines.forEach((line, i) => {
+        const m = line.match(/^## (.+)/);
+        if (m) {
+          const numMatch = m[1].match(/^Session\s+(\d+)/i) || m[1].match(/^(\d+)/);
+          sessions.push({ number: numMatch ? parseInt(numMatch[1]) : sessions.length + 1, title: m[1].trim(), line: i + 1, tasks: [] });
+        }
+      });
+    }
     res.json({ exists: true, content, sessions });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── API: 마지막 오케스트레이션 실행 보고 ───────────────
+app.get('/api/report/last', auth, (req, res) => {
+  const sessionsDir = '/tmp/agent-sessions';
+  if (!fs.existsSync(sessionsDir)) {
+    return res.json({ exists: false });
+  }
+  try {
+    // 가장 최신 세션 디렉토리 찾기
+    const dirs = fs.readdirSync(sessionsDir)
+      .map(d => ({ name: d, mtime: fs.statSync(path.join(sessionsDir, d)).mtime }))
+      .sort((a, b) => b.mtime - a.mtime);
+    if (dirs.length === 0) return res.json({ exists: false });
+
+    const latestDir = path.join(sessionsDir, dirs[0].name);
+    const report = { exists: true, sessionId: dirs[0].name, timestamp: dirs[0].mtime };
+
+    // review.json
+    const reviewPath = path.join(latestDir, 'review.json');
+    if (fs.existsSync(reviewPath)) {
+      try { report.review = JSON.parse(fs.readFileSync(reviewPath, 'utf8')); } catch {}
+    }
+
+    // security.json
+    const secPath = path.join(latestDir, 'security.json');
+    if (fs.existsSync(secPath)) {
+      try { report.security = JSON.parse(fs.readFileSync(secPath, 'utf8')); } catch {}
+    }
+
+    // sandbox.json
+    const sandboxPath = path.join(latestDir, 'sandbox.json');
+    if (fs.existsSync(sandboxPath)) {
+      try { report.sandbox = JSON.parse(fs.readFileSync(sandboxPath, 'utf8')); } catch {}
+    }
+
+    // worker 결과에서 파일 목록 수집
+    const files = [];
+    const workerFiles = fs.readdirSync(latestDir).filter(f => f.startsWith('worker-'));
+    for (const wf of workerFiles) {
+      try {
+        const data = JSON.parse(fs.readFileSync(path.join(latestDir, wf), 'utf8'));
+        if (data.files) files.push(...data.files.map(f => typeof f === 'string' ? f : f.path));
+      } catch {}
+    }
+    report.filesCreated = [...new Set(files)];
+
+    // cost.json (세션 비용)
+    const costPath = path.join(latestDir, 'cost.json');
+    if (fs.existsSync(costPath)) {
+      try { report.cost = JSON.parse(fs.readFileSync(costPath, 'utf8')); } catch {}
+    }
+
+    res.json(report);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -589,15 +648,8 @@ app.post('/api/plan/append', auth, (req, res) => {
     const { appendSessionToPlan } = require('./orchestrator/plan-generator');
     appendSessionToPlan(planPath, sessionBlock);
     // 추가 후 세션 목록 반환 (UI 자동 갱신용)
-    const content = fs.readFileSync(planPath, 'utf8');
-    const sessions = [];
-    content.split('\n').forEach((line, i) => {
-      const m = line.match(/^## (.+)/);
-      if (m) {
-        const numMatch = m[1].match(/^Session\s+(\d+)/i) || m[1].match(/^(\d+)/);
-        sessions.push({ number: numMatch ? parseInt(numMatch[1]) : sessions.length + 1, title: m[1].trim(), line: i + 1 });
-      }
-    });
+    const { parsePlan } = require('./orchestrator/plan-parser');
+    const sessions = parsePlan(planPath).sessions;
     res.json({ ok: true, sessions });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -1146,7 +1198,7 @@ app.get('/', (req, res) => {
 
 // ── 서버 시작 ─────────────────────────────────────────
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`\n🛰  Agent Mission Control Server v4.1`);
+  console.log(`\n🛰  Agent Mission Control Server v5.0`);
   console.log(`   접속 주소: http://0.0.0.0:${PORT}`);
   console.log(`   현재 프로젝트: ${currentProject.label} (${currentProject.root}`);
   console.log(`   ✅ v4.1: 실시간 모델 동기화, 다중 세션, 직접 프롬프트 지원`);

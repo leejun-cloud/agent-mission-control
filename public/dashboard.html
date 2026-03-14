@@ -614,6 +614,44 @@ body::before {
   gap: 6px;
 }
 .qa-action-btn:hover { transform: translateY(-2px); filter: brightness(1.1); }
+
+/* ── PLAN TREE ── */
+.plan-session { margin-bottom:4px; }
+.plan-session > summary {
+  display:flex; align-items:center; gap:6px; padding:5px 8px;
+  background:var(--surface2); border-radius:5px; cursor:pointer;
+  border:1px solid var(--border); list-style:none; user-select:none;
+}
+.plan-session > summary::-webkit-details-marker { display:none; }
+.plan-session-arrow { font-size:8px; color:var(--muted2); transition:transform 0.15s; display:inline-block; }
+.plan-session[open] > summary .plan-session-arrow { transform:rotate(90deg); }
+.plan-tasks { padding:4px 0 0 14px; display:flex; flex-direction:column; gap:3px; }
+.plan-task { border-left:1px solid var(--border); padding-left:8px; }
+.plan-task > summary {
+  display:flex; align-items:center; gap:6px; padding:3px 5px;
+  border-radius:4px; cursor:pointer; list-style:none; user-select:none;
+}
+.plan-task > summary::-webkit-details-marker { display:none; }
+.plan-task[open] > summary .plan-session-arrow { transform:rotate(90deg); }
+.plan-subtasks { padding:4px 0 0 14px; display:flex; flex-direction:column; gap:2px; }
+.plan-subtask { display:flex; align-items:flex-start; gap:5px; padding:2px 0; cursor:pointer; }
+.plan-subtask input { margin-top:2px; accent-color:var(--success); flex-shrink:0; }
+.plan-subtask.done > span { text-decoration:line-through; color:var(--muted) !important; }
+.plan-badge {
+  background:var(--surface3); color:var(--muted2); font-size:8px;
+  padding:1px 5px; border-radius:10px; font-family:var(--mono); flex-shrink:0;
+}
+.plan-prog-bar { width:40px; height:4px; background:var(--surface3); border-radius:2px; overflow:hidden; flex-shrink:0; }
+.plan-prog-fill { height:100%; background:var(--success); border-radius:2px; transition:width 0.3s; }
+
+/* ── LAST REPORT CARD ── */
+.report-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px; }
+.report-metric { background:var(--surface2); border:1px solid var(--border); border-radius:6px; padding:8px 10px; }
+.report-metric-val { font-size:20px; font-weight:800; font-family:var(--mono); }
+.report-metric-label { font-size:9px; color:var(--muted2); letter-spacing:1px; margin-top:2px; }
+.report-files { background:var(--surface2); border:1px solid var(--border); border-radius:6px; padding:8px 10px; }
+.report-files-list { max-height:120px; overflow-y:auto; display:flex; flex-direction:column; gap:2px; margin-top:6px; }
+.report-file-item { font-size:9px; font-family:var(--mono); color:var(--cyan); display:flex; align-items:center; gap:4px; }
 </style>
 </head>
 <body>
@@ -846,7 +884,7 @@ body::before {
               <div class="add-mission-title">PLAN.MD 세션 (다중 선택 가능)</div>
               <button class="form-btn" onclick="loadPlanSessions()" style="background:var(--surface2);border:1px solid var(--border);color:var(--muted2);padding:3px 10px;font-size:9px">↻ RELOAD</button>
             </div>
-            <div id="session-checkbox-list" style="display:flex;flex-direction:column;gap:5px;max-height:180px;overflow-y:auto;margin-bottom:10px">
+            <div id="session-checkbox-list" style="display:flex;flex-direction:column;gap:4px;max-height:320px;overflow-y:auto;margin-bottom:10px">
               <div style="color:var(--muted2);font-size:10px;font-family:var(--mono)">plan.md 로드 중...</div>
             </div>
             <div style="display:flex;gap:6px">
@@ -881,6 +919,15 @@ body::before {
           <!-- Pipeline Steps -->
           <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px" id="pipeline-steps">
             <!-- filled by JS -->
+          </div>
+
+          <!-- Last Run Report -->
+          <div class="add-mission-card" id="last-report-card" style="margin-bottom:12px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+              <div class="add-mission-title">📊 마지막 실행 보고</div>
+              <button class="form-btn" onclick="loadLastReport()" style="background:var(--surface2);border:1px solid var(--border);color:var(--muted2);padding:3px 10px;font-size:9px">↻ RELOAD</button>
+            </div>
+            <div id="last-report-content" style="color:var(--muted2);font-size:10px;font-family:var(--mono)">보고 없음 — 오케스트레이션을 실행하세요.</div>
           </div>
 
           <!-- AI Agent Model Config -->
@@ -1164,6 +1211,7 @@ function switchTab(name, el) {
     renderPipelineSteps([]);
     loadPlanSessions();
     loadAgentConfig();
+    loadLastReport();
   }
   if (name === 'qa') {
     loadQaPlanSessions();
@@ -1564,8 +1612,36 @@ function setOrchMode(mode) {
 }
 
 function selectAllSessions(checked) {
-  document.querySelectorAll('#session-checkbox-list input[type=checkbox]')
+  document.querySelectorAll('#session-checkbox-list .session-select-cb')
     .forEach(cb => cb.checked = checked);
+}
+
+function escHtml(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function toggleSubtask(cb) {
+  localStorage.setItem(cb.dataset.key, cb.checked ? '1' : '0');
+  const label = cb.closest('.plan-subtask');
+  if (label) {
+    label.classList.toggle('done', cb.checked);
+    const sp = label.querySelector('span');
+    if (sp) sp.style.color = cb.checked ? 'var(--muted)' : 'var(--text)';
+  }
+  // 부모 task 진행률 업데이트
+  const taskDetails = cb.closest('.plan-task');
+  if (taskDetails) updateTaskProgress(taskDetails);
+}
+
+function updateTaskProgress(taskEl) {
+  const subs = taskEl.querySelectorAll('.subtask-cb');
+  if (!subs.length) return;
+  const done = [...subs].filter(cb => cb.checked).length;
+  const pct = Math.round(done / subs.length * 100);
+  const fill = taskEl.querySelector('.plan-prog-fill');
+  if (fill) fill.style.width = pct + '%';
+  const badge = taskEl.querySelector('summary .plan-badge');
+  if (badge) badge.textContent = `${done}/${subs.length}`;
 }
 
 async function loadPlanSessions() {
@@ -1579,21 +1655,127 @@ async function loadPlanSessions() {
       container.innerHTML = '<div style="color:var(--muted2);font-size:10px;font-family:var(--mono)">plan.md 없음 또는 세션 미정의</div>';
       return;
     }
-    container.innerHTML = d.sessions.map(s =>
-      `<label style="display:flex;align-items:center;gap:8px;padding:5px 8px;background:var(--surface1);border-radius:5px;cursor:pointer;border:1px solid var(--border)">
-        <input type="checkbox" value="${s.number}" style="accent-color:var(--purple);width:14px;height:14px">
-        <span style="font-size:10px;font-family:var(--mono)"><span style="color:var(--accent);font-weight:800">Session ${s.number}</span></span>
-        <span style="font-size:10px;color:var(--muted2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.title}</span>
-      </label>`
-    ).join('');
-  } catch {
-    container.innerHTML = '<div style="color:var(--error);font-size:10px">로드 실패</div>';
+
+    container.innerHTML = d.sessions.map(s => {
+      const tasks = s.tasks || [];
+
+      const taskHtml = tasks.map((t, ti) => {
+        const subs = t.subtasks || [];
+        const subHtml = subs.map((st, si) => {
+          const key = `plan_sub_${s.number}_${ti}_${si}`;
+          const isChecked = st.checked || localStorage.getItem(key) === '1';
+          const sectionTag = st.section
+            ? `<span style="color:var(--accent);font-size:8px;margin-right:2px">[${escHtml(st.section)}]</span>`
+            : '';
+          return `<label class="plan-subtask${isChecked ? ' done' : ''}">
+            <input type="checkbox" class="subtask-cb" data-key="${key}" ${isChecked ? 'checked' : ''} onchange="toggleSubtask(this)">
+            <span style="font-size:10px;font-family:var(--mono);color:${isChecked ? 'var(--muted)' : 'var(--text)'}">${sectionTag}${escHtml(st.text)}</span>
+          </label>`;
+        }).join('');
+
+        const checkedCount = subs.filter((st, si) => {
+          const key = `plan_sub_${s.number}_${ti}_${si}`;
+          return st.checked || localStorage.getItem(key) === '1';
+        }).length;
+        const pct = subs.length > 0 ? Math.round(checkedCount / subs.length * 100) : 0;
+        const progressHtml = subs.length > 0
+          ? `<span class="plan-badge">${checkedCount}/${subs.length}</span>
+             <div class="plan-prog-bar"><div class="plan-prog-fill" style="width:${pct}%"></div></div>`
+          : '';
+
+        return `<details class="plan-task">
+          <summary>
+            <span class="plan-session-arrow">▶</span>
+            <span style="font-size:10px;font-family:var(--mono);color:var(--cyan);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(t.title)}</span>
+            ${progressHtml}
+          </summary>
+          ${subHtml ? `<div class="plan-subtasks">${subHtml}</div>` : ''}
+        </details>`;
+      }).join('');
+
+      const totalTasks = tasks.length;
+      return `<details class="plan-session" open>
+        <summary>
+          <span class="plan-session-arrow">▶</span>
+          <input type="checkbox" class="session-select-cb" value="${s.number}"
+            style="accent-color:var(--purple);width:13px;height:13px;flex-shrink:0" onclick="event.stopPropagation()">
+          <span style="font-size:10px;font-family:var(--mono);color:var(--accent);font-weight:800;flex-shrink:0">Session ${s.number}</span>
+          <span style="font-size:10px;color:var(--muted2);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(s.title)}</span>
+          ${totalTasks ? `<span class="plan-badge">${totalTasks} tasks</span>` : ''}
+        </summary>
+        ${taskHtml ? `<div class="plan-tasks">${taskHtml}</div>` : ''}
+      </details>`;
+    }).join('');
+  } catch(e) {
+    container.innerHTML = `<div style="color:var(--error);font-size:10px">로드 실패: ${e.message}</div>`;
+  }
+}
+
+async function loadLastReport() {
+  const el = document.getElementById('last-report-content');
+  el.innerHTML = '<span style="color:var(--muted2);font-size:10px;font-family:var(--mono)">로드 중...</span>';
+  try {
+    const r = await api('/api/report/last');
+    if (!r.ok) { el.innerHTML = '<span style="color:var(--warn);font-size:10px">API 오류</span>'; return; }
+    const d = await r.json();
+    if (!d.exists) {
+      el.innerHTML = '<span style="color:var(--muted2);font-size:10px;font-family:var(--mono)">보고 없음 — 오케스트레이션을 실행하세요.</span>';
+      return;
+    }
+    const ts = new Date(d.timestamp).toLocaleString('ko-KR');
+    const score = d.review?.score ?? d.review?.reviewScore ?? '—';
+    const scoreColor = typeof score === 'number' ? (score >= 80 ? 'var(--success)' : score >= 60 ? 'var(--warn)' : 'var(--error)') : 'var(--muted2)';
+    const secLevel = d.security?.riskLevel ?? d.security?.level ?? '—';
+    const secColor = secLevel === 'low' ? 'var(--success)' : secLevel === 'medium' ? 'var(--warn)' : secLevel === 'high' ? 'var(--error)' : 'var(--muted2)';
+    const cost = d.cost?.totalUSD ?? d.cost?.total ?? '—';
+    const costStr = typeof cost === 'number' ? `$${cost.toFixed(4)}` : cost;
+    const files = d.filesCreated || [];
+    const issues = (d.review?.issues || []).concat(d.security?.issues || []);
+
+    el.innerHTML = `
+      <div style="font-size:9px;color:var(--muted2);font-family:var(--mono);margin-bottom:8px">세션 ID: ${d.sessionId} | ${ts}</div>
+      <div class="report-grid">
+        <div class="report-metric">
+          <div class="report-metric-val" style="color:${scoreColor}">${score}${typeof score === 'number' ? '<span style="font-size:12px">/100</span>' : ''}</div>
+          <div class="report-metric-label">코드 리뷰 점수</div>
+        </div>
+        <div class="report-metric">
+          <div class="report-metric-val" style="color:${secColor};text-transform:uppercase;font-size:14px">${secLevel}</div>
+          <div class="report-metric-label">보안 등급</div>
+        </div>
+        <div class="report-metric">
+          <div class="report-metric-val" style="color:var(--cyan)">${files.length}</div>
+          <div class="report-metric-label">생성된 파일</div>
+        </div>
+        <div class="report-metric">
+          <div class="report-metric-val" style="color:var(--purple)">${costStr}</div>
+          <div class="report-metric-label">AI 비용</div>
+        </div>
+      </div>
+      ${files.length ? `
+      <div class="report-files">
+        <div style="font-size:9px;color:var(--muted2);letter-spacing:1px">생성/수정된 파일</div>
+        <div class="report-files-list">
+          ${files.map(f => `<div class="report-file-item">📄 ${escHtml(f)}</div>`).join('')}
+        </div>
+      </div>` : ''}
+      ${issues.length ? `
+      <div style="margin-top:8px">
+        <div style="font-size:9px;color:var(--muted2);letter-spacing:1px;margin-bottom:4px">발견된 이슈 (${issues.length})</div>
+        ${issues.slice(0,5).map(iss => `
+          <div style="font-size:9px;font-family:var(--mono);background:var(--surface2);border-left:2px solid var(--warn);padding:3px 6px;border-radius:0 3px 3px 0;margin-bottom:2px;color:var(--text)">${escHtml(typeof iss === 'string' ? iss : iss.message || JSON.stringify(iss))}</div>
+        `).join('')}
+        ${issues.length > 5 ? `<div style="font-size:9px;color:var(--muted2);font-family:var(--mono)">… 외 ${issues.length - 5}개</div>` : ''}
+      </div>` : ''}
+    `;
+  } catch(e) {
+    el.innerHTML = `<span style="color:var(--error);font-size:10px">로드 실패: ${e.message}</span>`;
   }
 }
 
 async function runOrchestration() {
   // v4.1: 체크박스에서 선택된 세션 목록 수집
-  const checked = [...document.querySelectorAll('#session-checkbox-list input[type=checkbox]:checked')];
+  const checked = [...document.querySelectorAll('#session-checkbox-list .session-select-cb:checked')];
   if (!checked.length) { showToast('하나 이상의 세션을 선택하세요.', 'err'); return; }
   const sessions = checked.map(cb => parseInt(cb.value));
 
