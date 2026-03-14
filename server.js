@@ -990,17 +990,16 @@ app.post('/api/qa/run', auth, async (req, res) => {
     // playwright require 경로 보장 (지능적 중복 방지 및 절대 경로 치환)
     const playwrightPath = path.join(__dirname, 'node_modules', 'playwright');
     
-    // 이미 chromium 선언이 있는지 또는 playwright require가 있는지 정규식으로 체크 (공백, 따옴표 무관)
-    const hasChromiumDecl = /const\s*{[^}]*chromium[^}]*}\s*=\s*require\s*\(['"]playwright['"]\)/i.test(script) ||
-                            /let\s*{[^}]*chromium[^}]*}\s*=\s*require\s*\(['"]playwright['"]\)/i.test(script) ||
-                            /var\s*{[^}]*chromium[^}]*}\s*=\s*require\s*\(['"]playwright['"]\)/i.test(script);
-    const hasPlaywrightReq = /require\s*\(['"]playwright['"]\)/i.test(script);
+    // 1. 모든 'playwright' require 선언을 절대 경로로 치환
+    script = script.replace(/require\s*\(\s*['"]playwright['"]\s*\)/gi, `require('${playwrightPath}')`);
 
-    if (!hasChromiumDecl && !hasPlaywrightReq) {
+    // 2. 'chromium' 변수가 어떤 방식(destructuring, assignment 등)으로든 선언되었는지 확인
+    // 예: const { chromium } = ..., let chromium = ..., var { chromium: ch } = ...
+    const hasChromiumDeclaration = /\b(const|let|var)\s*\{?\s*chromium\b/i.test(script);
+
+    if (!hasChromiumDeclaration) {
+        // 선언이 발견되지 않았다면 최상단에 주입
         script = `const { chromium } = require('${playwrightPath}');\n` + script;
-    } else {
-        // 이미 존재한다면 모듈명만 절대 경로로 치환 (gi 플래그로 중복 치환 방지)
-        script = script.replace(/require\s*\(['"]playwright['"]\)/gi, `require('${playwrightPath}')`);
     }
 
     fs.writeFileSync(scriptPath, script, 'utf8');
