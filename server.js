@@ -555,6 +555,45 @@ app.post('/api/plan', auth, (req, res) => {
   res.json({ ok: true, path: planPath });
 });
 
+// ── API: AI 세션 블록 생성 (미리보기, append 안 함) ────
+app.post('/api/plan/generate', auth, async (req, res) => {
+  const { prompt } = req.body;
+  if (!prompt) return res.status(400).json({ error: 'prompt 필수' });
+  const planPath = path.join(currentProject.root, 'plan.md');
+  try {
+    const { generateSessionBlock } = require('./orchestrator/plan-generator');
+    const result = await generateSessionBlock(prompt, planPath);
+    res.json({ ok: true, ...result });
+  } catch (e) {
+    console.error('[plan/generate]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── API: 생성된 세션 블록 plan.md에 append ─────────────
+app.post('/api/plan/append', auth, (req, res) => {
+  const { sessionBlock } = req.body;
+  if (!sessionBlock) return res.status(400).json({ error: 'sessionBlock 필수' });
+  const planPath = path.join(currentProject.root, 'plan.md');
+  try {
+    const { appendSessionToPlan } = require('./orchestrator/plan-generator');
+    appendSessionToPlan(planPath, sessionBlock);
+    // 추가 후 세션 목록 반환 (UI 자동 갱신용)
+    const content = fs.readFileSync(planPath, 'utf8');
+    const sessions = [];
+    content.split('\n').forEach((line, i) => {
+      const m = line.match(/^## (.+)/);
+      if (m) {
+        const numMatch = m[1].match(/^Session\s+(\d+)/i) || m[1].match(/^(\d+)/);
+        sessions.push({ number: numMatch ? parseInt(numMatch[1]) : sessions.length + 1, title: m[1].trim(), line: i + 1 });
+      }
+    });
+    res.json({ ok: true, sessions });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── API: AI 에이전트 설정 변경 ─────────────────────────
 app.get('/api/agents/config', auth, (req, res) => {
   res.json({ config: getAgentConfig() });

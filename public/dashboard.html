@@ -823,6 +823,22 @@ body::before {
             <button id="mode-direct-btn" class="form-btn" onclick="setOrchMode('direct')" style="flex:1;background:var(--surface2);border:1px solid var(--border);color:var(--muted2)">🚀 직접 프롬프트</button>
           </div>
 
+          <!-- AI 세션 자동 생성 -->
+          <div class="add-mission-card" id="orch-ai-gen-section" style="margin-bottom:12px;border:1px solid #7c3aed44;background:linear-gradient(135deg,#1e1b2e,#1a1a2e)">
+            <div class="add-mission-title" style="margin-bottom:8px">✨ AI 세션 자동 생성</div>
+            <textarea id="plan-gen-input" placeholder="자연어로 원하는 기능을 입력하세요&#10;예: &quot;결제 기능 추가해줘&quot; / &quot;사용자 프로필 페이지 만들어줘&quot;"
+              style="width:100%;height:64px;background:var(--surface1);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:8px;font-family:var(--mono);font-size:11px;resize:none;box-sizing:border-box"></textarea>
+            <button class="form-btn" id="plan-gen-btn" onclick="generatePlanSession()" style="width:100%;margin-top:6px;background:linear-gradient(135deg,#7c3aed,#a855f7)">🤖 AI 세션 생성</button>
+            <div id="plan-gen-preview" style="display:none;margin-top:10px">
+              <div style="font-size:10px;color:var(--muted2);margin-bottom:4px;font-family:var(--mono)">📋 생성된 세션 블록 (수정 가능)</div>
+              <textarea id="plan-gen-block" style="width:100%;height:180px;background:#0d1117;border:1px solid #7c3aed66;color:#a5f3fc;border-radius:6px;padding:8px;font-family:var(--mono);font-size:10px;resize:vertical;box-sizing:border-box"></textarea>
+              <div style="display:flex;gap:6px;margin-top:6px">
+                <button class="form-btn" onclick="appendPlanSession()" style="flex:1;background:#059669">📌 plan.md에 추가</button>
+                <button class="form-btn" onclick="document.getElementById('plan-gen-preview').style.display='none'" style="flex:1;background:var(--surface2);border:1px solid var(--border);color:var(--muted2)">✕ 취소</button>
+              </div>
+            </div>
+          </div>
+
           <!-- Plan Sessions (Multi-Select) -->
           <div class="add-mission-card" id="orch-plan-section" style="margin-bottom:12px">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
@@ -1396,8 +1412,46 @@ function setDeployTarget(t) {
   showToast(`${t === 'pr' ? 'PR 브랜치' : '메인 배포'} 모드 선택됨`, 'ok');
 }
 
+/* ── AI 세션 자동 생성 ─────────────────────────────── */
+async function generatePlanSession() {
+  const prompt = document.getElementById('plan-gen-input').value.trim();
+  if (!prompt) { showToast('요청 내용을 입력하세요', 'warn'); return; }
+  const btn = document.getElementById('plan-gen-btn');
+  btn.disabled = true; btn.textContent = '⏳ AI 생성 중...';
+  document.getElementById('plan-gen-preview').style.display = 'none';
+  try {
+    const res = await apiFetch('/api/plan/generate', { method: 'POST', body: JSON.stringify({ prompt }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'AI 생성 실패');
+    document.getElementById('plan-gen-block').value = data.sessionBlock;
+    document.getElementById('plan-gen-preview').style.display = 'block';
+    showToast(`Session ${data.sessionNumber} 생성 완료 — 검토 후 추가하세요`, 'ok');
+  } catch (e) {
+    showToast(`생성 실패: ${e.message}`, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = '🤖 AI 세션 생성';
+  }
+}
+
+async function appendPlanSession() {
+  const sessionBlock = document.getElementById('plan-gen-block').value.trim();
+  if (!sessionBlock) return;
+  try {
+    const res = await apiFetch('/api/plan/append', { method: 'POST', body: JSON.stringify({ sessionBlock }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'append 실패');
+    document.getElementById('plan-gen-preview').style.display = 'none';
+    document.getElementById('plan-gen-input').value = '';
+    showToast('plan.md에 새 세션이 추가됐습니다! 세션 목록을 새로고침하세요.', 'ok');
+    loadPlanSessions();
+  } catch (e) {
+    showToast(`추가 실패: ${e.message}`, 'error');
+  }
+}
+
 function setOrchMode(mode) {
   orchMode = mode;
+  document.getElementById('orch-ai-gen-section').style.display  = mode === 'plan'   ? '' : 'none';
   document.getElementById('orch-plan-section').style.display    = mode === 'plan'   ? '' : 'none';
   document.getElementById('orch-direct-section').style.display  = mode === 'direct' ? '' : 'none';
   const planBtn   = document.getElementById('mode-plan-btn');
