@@ -1,0 +1,48 @@
+name: AI Pipeline — Quality Gate
+on:
+  push:
+    branches: [main, "agent/**"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Tests + Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "20", cache: "npm" }
+      - run: npm ci
+      - run: npm run test:ci
+        env: { CI: true }
+
+  lint:
+    name: ESLint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "20", cache: "npm" }
+      - run: npm ci
+      - run: npm run lint
+
+  security:
+    name: Semgrep Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: semgrep/semgrep-action@v1
+        with: { config: security/semgrep-config.yml }
+        continue-on-error: true
+
+  audit:
+    name: Dependency Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "20", cache: "npm" }
+      - run: npm ci
+      - run: npm audit --audit-level=high
+        continue-on-error: true
