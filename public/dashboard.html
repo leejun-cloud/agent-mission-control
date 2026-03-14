@@ -883,11 +883,33 @@ body::before {
             <!-- filled by JS -->
           </div>
 
-          <!-- AI Agent Model Config (v4.1: Dynamic + grouped) -->
+          <!-- AI Agent Model Config -->
           <div class="add-mission-card">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
               <div class="add-mission-title">AI AGENT MODEL CONFIG</div>
               <button class="form-btn" onclick="loadDynamicModels()" style="background:var(--surface2);border:1px solid var(--border);color:var(--muted2);font-size:9px">🔄 모델 동기화</button>
+            </div>
+            <!-- 프리셋 버튼 -->
+            <div style="margin-bottom:10px">
+              <div style="font-size:9px;color:var(--muted2);font-family:var(--mono);margin-bottom:5px;letter-spacing:1px">⚡ PRESET</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px">
+                <button class="form-btn preset-btn" id="preset-balance" onclick="applyPreset('balance')"
+                  style="font-size:9px;padding:5px 4px;background:var(--surface2);border:1px solid #334155;text-align:left">
+                  ⚡ 밸런스<br><span style="color:var(--muted2);font-size:8px">DeepSeek R1 + V3</span>
+                </button>
+                <button class="form-btn preset-btn" id="preset-premium" onclick="applyPreset('premium')"
+                  style="font-size:9px;padding:5px 4px;background:var(--surface2);border:1px solid #334155;text-align:left">
+                  💎 프리미엄<br><span style="color:var(--muted2);font-size:8px">Claude Sonnet + Haiku</span>
+                </button>
+                <button class="form-btn preset-btn" id="preset-highend" onclick="applyPreset('highend')"
+                  style="font-size:9px;padding:5px 4px;background:var(--surface2);border:1px solid #334155;text-align:left">
+                  🔥 하이엔드<br><span style="color:var(--muted2);font-size:8px">Claude 3.7 + GPT-4o</span>
+                </button>
+                <button class="form-btn preset-btn" id="preset-design" onclick="applyPreset('design')"
+                  style="font-size:9px;padding:5px 4px;background:var(--surface2);border:1px solid #334155;text-align:left">
+                  🏆 설계 특화<br><span style="color:var(--muted2);font-size:8px">3.7 설계 + V3 코딩 + 2.5 UI</span>
+                </button>
+              </div>
             </div>
             <div id="agent-config-list" style="display:flex;flex-direction:column;gap:6px"></div>
             <!-- Dynamic Model Browser -->
@@ -1941,6 +1963,84 @@ async function populateModelSelects() {
     // \uc774\uc804 \uac12 \ubcf5\uc6d0
     if (currentVal) sel.value = currentVal;
   });
+}
+
+/* ── 에이전트 프리셋 ──────────────────────────────── */
+const PRESETS = {
+  balance: {
+    label: '⚡ 밸런스',
+    architect:    'deepseek/deepseek-r1',
+    orchestrator: 'google/gemini-2.0-flash-001',
+    worker:       'deepseek/deepseek-chat',
+    designer:     'google/gemini-2.5-flash',
+    reviewer:     'qwen/qwen-max',
+    tester:       'qwen/qwen-2.5-coder-32b-instruct',
+    security:     'anthropic/claude-3.5-haiku',
+    fixer:        'deepseek/deepseek-chat',
+    integrator:   'deepseek/deepseek-chat',
+  },
+  premium: {
+    label: '💎 프리미엄',
+    architect:    'anthropic/claude-3.5-sonnet',
+    orchestrator: 'anthropic/claude-3.5-haiku',
+    worker:       'anthropic/claude-3.5-haiku',
+    designer:     'google/gemini-2.5-pro',
+    reviewer:     'openai/gpt-4o',
+    tester:       'deepseek/deepseek-chat',
+    security:     'anthropic/claude-3.5-sonnet',
+    fixer:        'qwen/qwen-max',
+    integrator:   'anthropic/claude-3.5-haiku',
+  },
+  highend: {
+    label: '🔥 하이엔드',
+    architect:    'anthropic/claude-3.7-sonnet',
+    orchestrator: 'openai/gpt-4o',
+    worker:       'anthropic/claude-3.5-sonnet',
+    designer:     'google/gemini-2.5-pro',
+    reviewer:     'anthropic/claude-3.7-sonnet',
+    tester:       'deepseek/deepseek-chat',
+    security:     'anthropic/claude-3.7-sonnet',
+    fixer:        'anthropic/claude-3.5-haiku',
+    integrator:   'anthropic/claude-3.5-haiku',
+  },
+  design: {
+    label: '🏆 설계 특화',
+    architect:    'anthropic/claude-3.7-sonnet',
+    orchestrator: 'anthropic/claude-3.5-haiku',
+    worker:       'deepseek/deepseek-chat',
+    designer:     'google/gemini-2.5-pro',
+    reviewer:     'qwen/qwen-max',
+    tester:       'qwen/qwen-2.5-coder-32b-instruct',
+    security:     'anthropic/claude-3.5-sonnet',
+    fixer:        'deepseek/deepseek-chat',
+    integrator:   'deepseek/deepseek-chat',
+  },
+};
+
+async function applyPreset(name) {
+  const preset = PRESETS[name];
+  if (!preset) return;
+
+  // 버튼 활성 상태 표시
+  document.querySelectorAll('.preset-btn').forEach(b => {
+    b.style.border = '1px solid #334155';
+    b.style.background = 'var(--surface2)';
+  });
+  const activeBtn = document.getElementById(`preset-${name}`);
+  if (activeBtn) {
+    activeBtn.style.border = '1px solid var(--accent)';
+    activeBtn.style.background = '#1e1b2e';
+  }
+
+  showToast(`${preset.label} 프리셋 적용 중...`, 'ok');
+
+  const roles = Object.keys(preset).filter(k => k !== 'label');
+  await Promise.all(roles.map(role =>
+    api('/api/agents/config', { method: 'POST', body: { role, modelId: preset[role] } })
+  ));
+
+  await loadAgentConfig();
+  showToast(`✅ ${preset.label} 프리셋 적용 완료`, 'ok');
 }
 
 async function loadAgentConfig() {

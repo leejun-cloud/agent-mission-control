@@ -620,31 +620,31 @@ app.post('/api/agents/config', auth, (req, res) => {
 
 const MODEL_PRIORITY = {
   'openai':      { label: 'OpenAI',          emoji: '🤖', preferred: [
-    'openai/o3-mini', 'openai/o1', 'openai/gpt-4o', 'openai/gpt-4o-mini', 'openai/gpt-4-turbo', 'openai/o1-mini', 'openai/o1-preview', 'openai/gpt-4', 'openai/gpt-4-0314', 'openai/gpt-3.5-turbo'
+    'openai/o3', 'openai/o4-mini', 'openai/o3-mini', 'openai/o1', 'openai/gpt-4.1', 'openai/gpt-4o', 'openai/gpt-4o-mini', 'openai/gpt-4-turbo', 'openai/o1-mini', 'openai/gpt-4',
   ] },
   'anthropic':   { label: 'Anthropic',       emoji: '🧠', preferred: [
-    'anthropic/claude-3.7-sonnet', 'anthropic/claude-3.5-sonnet', 'anthropic/claude-3.5-haiku', 'anthropic/claude-3-opus', 'anthropic/claude-3-sonnet', 'anthropic/claude-3-haiku', 'anthropic/claude-2.1', 'anthropic/claude-2.0', 'anthropic/claude-instant-1.2', 'anthropic/claude-3-opus:beta'
+    'anthropic/claude-opus-4', 'anthropic/claude-sonnet-4', 'anthropic/claude-haiku-4', 'anthropic/claude-3.7-sonnet', 'anthropic/claude-3.5-sonnet', 'anthropic/claude-3.5-haiku', 'anthropic/claude-3-opus', 'anthropic/claude-3-sonnet', 'anthropic/claude-3-haiku', 'anthropic/claude-2.1',
   ] },
   'google':      { label: 'Google',          emoji: '✨', preferred: [
-    'google/gemini-2.0-pro-exp-02-05', 'google/gemini-2.0-flash-001', 'google/gemini-pro-1.5', 'google/gemini-flash-1.5', 'google/gemini-2.0-flash-lite-preview-02-05', 'google/gemini-pro', 'google/gemini-flash', 'google/gemini-1.0-pro', 'google/palm-2-chat-bison', 'google/palm-2-code-chat-bison'
+    'google/gemini-2.5-pro', 'google/gemini-2.5-pro-preview', 'google/gemini-2.5-flash', 'google/gemini-2.5-flash-preview', 'google/gemini-2.0-pro-exp-02-05', 'google/gemini-2.0-flash-001', 'google/gemini-pro-1.5', 'google/gemini-flash-1.5', 'google/gemini-2.0-flash-lite-preview-02-05', 'google/gemini-pro',
   ] },
   'deepseek':    { label: 'DeepSeek',        emoji: '🔬', preferred: [
-    'deepseek/deepseek-r1', 'deepseek/deepseek-chat', 'deepseek/deepseek-v3', 'deepseek/deepseek-r1-distill-llama-70b', 'deepseek/deepseek-r1-distill-qwen-32b', 'deepseek/deepseek-r1-distill-llama-8b', 'deepseek/deepseek-coder'
+    'deepseek/deepseek-v3-special', 'deepseek/deepseek-r1', 'deepseek/deepseek-chat', 'deepseek/deepseek-v3', 'deepseek/deepseek-r1-0528', 'deepseek/deepseek-r1-distill-llama-70b', 'deepseek/deepseek-r1-distill-qwen-32b', 'deepseek/deepseek-prover-v2', 'deepseek/deepseek-r1-distill-llama-8b', 'deepseek/deepseek-coder',
   ] },
   'qwen':        { label: 'Qwen (Alibaba)',  emoji: '🐉', preferred: [
-    'qwen/qwen-max', 'qwen/qwen-plus', 'qwen/qwen-2.5-coder-32b-instruct', 'qwen/qwen-2.5-72b-instruct', 'qwen/qwq-32b', 'qwen/qwen-2.5-coder-7b-instruct', 'qwen/qwen-2-72b-instruct'
+    'qwen/qwen3-235b-a22b', 'qwen/qwen3-30b-a3b', 'qwen/qwq-32b', 'qwen/qwen-max', 'qwen/qwen-plus', 'qwen/qwen-2.5-coder-32b-instruct', 'qwen/qwen-2.5-72b-instruct', 'qwen/qwen-2.5-coder-7b-instruct', 'qwen/qwen-2-72b-instruct', 'qwen/qwen-turbo',
   ] },
   'moonshot':    { label: 'Moonshot (Kimi)', emoji: '🌙', preferred: [
-    'moonshot/kimi-2.5', 'moonshot/kimi-v1-128k', 'moonshot/kimi-v1-32k', 'moonshot/kimi-v1-8k'
+    'moonshot/kimi-2.5', 'moonshot/kimi-k2', 'moonshot/kimi-vl-a3b-thinking', 'moonshot/kimi-v1-128k', 'moonshot/kimi-v1-32k', 'moonshot/kimi-v1-8k',
   ] },
   'meta':        { label: 'Meta (Llama)',    emoji: '🦙', preferred: [
-    'meta-llama/llama-3.3-70b-instruct', 'meta-llama/llama-3.1-405b-instruct', 'meta-llama/llama-3.1-70b-instruct', 'meta-llama/llama-3.1-8b-instruct', 'meta-llama/llama-3.2-3b-instruct', 'meta-llama/llama-3-70b-instruct', 'meta-llama/llama-guard-3-8b'
+    'meta-llama/llama-4-maverick', 'meta-llama/llama-4-scout', 'meta-llama/llama-3.3-70b-instruct', 'meta-llama/llama-3.1-405b-instruct', 'meta-llama/llama-3.1-70b-instruct', 'meta-llama/llama-3.1-8b-instruct', 'meta-llama/llama-3.2-90b-vision-instruct', 'meta-llama/llama-3.2-11b-vision-instruct', 'meta-llama/llama-3-70b-instruct', 'meta-llama/llama-guard-3-8b',
   ] },
   'mistral':     { label: 'Mistral',         emoji: '🌪', preferred: [
-    'mistralai/mistral-large', 'mistralai/mixtral-8x22b-instruct', 'mistralai/mistral-nemo', 'mistralai/pixtral-12b', 'mistralai/mistral-7b-instruct'
+    'mistralai/mistral-large-2411', 'mistralai/codestral-2501', 'mistralai/mistral-large', 'mistralai/mixtral-8x22b-instruct', 'mistralai/mistral-nemo', 'mistralai/pixtral-large-2411', 'mistralai/pixtral-12b', 'mistralai/mistral-7b-instruct', 'mistralai/mistral-medium', 'mistralai/mistral-small',
   ] },
   'zhipu':       { label: 'Zhipu (GLM)',     emoji: '🐼', preferred: [
-    'zhipu/glm-4-plus', 'zhipu/glm-4-flash', 'zhipu/glm-4-0520', 'zhipu/glm-4-9b'
+    'zhipu/glm-4-plus', 'zhipu/glm-4-flash', 'zhipu/glm-4-0520', 'zhipu/glm-4-9b', 'zhipu/glm-z1-plus', 'zhipu/glm-z1-flash',
   ] },
 };
 
@@ -739,11 +739,11 @@ const FALLBACK_MODELS = {
       { id: 'anthropic/claude-2.1',          name: 'Claude 2.1',        inputPrice: '8.000', outputPrice: '24.000' },
     ]},
     google: { label: '✨ Google', models: [
+      { id: 'google/gemini-2.5-pro',         name: 'Gemini 2.5 Pro',         inputPrice: '1.250', outputPrice: '10.000' },
+      { id: 'google/gemini-2.5-flash',       name: 'Gemini 2.5 Flash',       inputPrice: '0.150', outputPrice: '0.600' },
       { id: 'google/gemini-2.0-pro-exp-02-05', name: 'Gemini 2.0 Pro Exp', inputPrice: '0.000', outputPrice: '0.000' },
       { id: 'google/gemini-2.0-flash-001',   name: 'Gemini 2.0 Flash',       inputPrice: '0.100', outputPrice: '0.400' },
       { id: 'google/gemini-pro-1.5',          name: 'Gemini 1.5 Pro',        inputPrice: '1.250', outputPrice: '5.000' },
-      { id: 'google/gemini-flash-1.5',        name: 'Gemini 1.5 Flash',      inputPrice: '0.075', outputPrice: '0.300' },
-      { id: 'google/gemini-2.0-flash-lite-preview-02-05', name: 'Gemini 2.0 Flash Lite', inputPrice: '0.075', outputPrice: '0.300' },
     ]},
     moonshot: { label: '🌙 Moonshot (Kimi)', models: [
       { id: 'moonshot/kimi-2.5',             name: 'Kimi 2.5',          inputPrice: '0.600', outputPrice: '2.500' },
