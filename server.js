@@ -239,6 +239,28 @@ app.post('/api/projects/import', auth, (req, res) => {
   }
 });
 
+// ── API: 현재 프로젝트 git pull ────────────────────────
+app.post('/api/projects/pull', auth, (req, res) => {
+  const projectRoot = currentProject.root;
+  if (!fs.existsSync(path.join(projectRoot, '.git'))) {
+    return res.status(400).json({ error: 'git 저장소가 아닙니다: ' + projectRoot });
+  }
+  try {
+    const { execFileSync } = require('child_process');
+    const output = execFileSync('git', ['pull', '--rebase=false'], {
+      cwd: projectRoot,
+      encoding: 'utf8',
+      timeout: 30000,
+    });
+    console.log(`[git pull] ${currentProject.label}: ${output.trim()}`);
+    res.json({ ok: true, output: output.trim(), project: currentProject.label });
+  } catch (err) {
+    const msg = err.stderr || err.stdout || err.message;
+    console.error('[git pull 오류]', msg);
+    res.status(500).json({ error: msg });
+  }
+});
+
 // ── API: pm2 에이전트 상태 ────────────────────────────
 app.get('/api/agents', auth, (req, res) => {
   execFile('pm2', ['jlist'], (err, stdout) => {

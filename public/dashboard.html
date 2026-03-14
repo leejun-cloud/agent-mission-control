@@ -882,7 +882,11 @@ body::before {
           <div class="add-mission-card" id="orch-plan-section" style="margin-bottom:12px">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
               <div class="add-mission-title">PLAN.MD 세션 (다중 선택 가능)</div>
-              <button class="form-btn" onclick="loadPlanSessions()" style="background:var(--surface2);border:1px solid var(--border);color:var(--muted2);padding:3px 10px;font-size:9px">↻ RELOAD</button>
+              <div style="display:flex;gap:5px">
+                <button class="form-btn" id="git-pull-btn" onclick="gitPull()" title="GitHub에서 최신 파일 가져오기"
+                  style="background:var(--surface2);border:1px solid #22c55e55;color:#22c55e;padding:3px 10px;font-size:9px">⬇ git pull</button>
+                <button class="form-btn" onclick="loadPlanSessions()" style="background:var(--surface2);border:1px solid var(--border);color:var(--muted2);padding:3px 10px;font-size:9px">↻ RELOAD</button>
+              </div>
             </div>
             <div id="session-checkbox-list" style="display:flex;flex-direction:column;gap:4px;max-height:320px;overflow-y:auto;margin-bottom:10px">
               <div style="color:var(--muted2);font-size:10px;font-family:var(--mono)">plan.md 로드 중...</div>
@@ -1618,6 +1622,31 @@ function selectAllSessions(checked) {
 
 function escHtml(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+async function gitPull() {
+  const btn = document.getElementById('git-pull-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ pulling...';
+  try {
+    const r = await api('/api/projects/pull', { method: 'POST' });
+    const d = await r.json();
+    if (r.ok) {
+      const msg = d.output || 'Already up to date.';
+      addLog(`⬇ [git pull] ${d.project}: ${msg}`, 'success');
+      showToast(`✅ git pull 완료: ${msg.split('\n')[0]}`, 'ok');
+      // plan.md가 변경됐을 수 있으니 세션 목록 새로고침
+      await loadPlanSessions();
+    } else {
+      addLog(`❌ [git pull] ${d.error}`, 'error');
+      showToast(`git pull 실패: ${d.error}`, 'err');
+    }
+  } catch (e) {
+    showToast(`git pull 오류: ${e.message}`, 'err');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '⬇ git pull';
+  }
 }
 
 function toggleSubtask(cb) {
