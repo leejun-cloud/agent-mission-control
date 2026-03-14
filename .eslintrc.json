@@ -1,0 +1,14 @@
+{
+  "env": { "node": true, "es2022": true },
+  "parserOptions": { "ecmaVersion": 2022 },
+  "rules": {
+    "no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
+    "no-eval": "error",
+    "no-implicit-globals": "error",
+    "consistent-return": "error",
+    "no-var": "error",
+    "eqeqeq": ["error", "always"],
+    "no-new-func": "error",
+    "no-implied-eval": "error"
+  }
+}

@@ -1,0 +1,36 @@
+rules:
+  - id: sql-injection-template-literal
+    pattern: |
+      `SELECT ... ${...} ...`
+    message: "SQL injection: template literal in SQL query. Use parameterized queries."
+    languages: [javascript, typescript]
+    severity: ERROR
+
+  - id: xss-innerhtml
+    pattern: |
+      $EL.innerHTML = $INPUT
+    message: "XSS: direct innerHTML assignment. Use textContent or sanitize."
+    languages: [javascript, typescript]
+    severity: ERROR
+
+  - id: hardcoded-jwt-secret
+    patterns:
+      - pattern: jwt.sign($P, "$SECRET", ...)
+      - pattern: jwt.verify($T, "$SECRET", ...)
+    message: "JWT secret is hardcoded. Use process.env.JWT_SECRET."
+    languages: [javascript, typescript]
+    severity: ERROR
+
+  - id: eval-usage
+    pattern: eval($X)
+    message: "Code injection: eval() is forbidden."
+    languages: [javascript, typescript]
+    severity: ERROR
+
+  - id: command-injection-exec
+    patterns:
+      - pattern: exec($CMD + $INPUT)
+      - pattern: execSync($CMD + $INPUT)
+    message: "Command injection: user input in shell command. Use execFile() with args array."
+    languages: [javascript, typescript]
+    severity: ERROR

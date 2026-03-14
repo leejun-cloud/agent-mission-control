@@ -1,18 +1,24 @@
 /**
- * Orchestrator Main Pipeline (v4.1)
+ * Orchestrator Main Pipeline (v5.0)
  *
  * 실행 흐름:
- *   [1. ARCHITECT  o3.2]      plan.md → 프로젝트 구조 설계도
- *   [2. ORCHESTRATOR Sonnet]  설계도 → N개 태스크 분해 & 워커 할당
- *   [3. WORKERS Kimi×N]       태스크 병렬 코딩
- *   [4. DESIGNER Gemini]      UI 코드 디자인 검토
- *   [5. REVIEWER Qwen]        전수 보안/품질 검토 + 교육용 상세 리뷰 (v4.1)
- *   [6. FILE WRITER]          코드 파일 시스템에 자동 적용
- *   [7. GITHUB PR]            자동 브랜치 생성 + PR 오픈
- *   [8. NOTIFIER]             Slack 완료 알림
+ *   [1.  ARCHITECT  o3.2]      plan.md → 프로젝트 구조 설계도
+ *   [2.  ORCHESTRATOR Sonnet]  설계도 → N개 태스크 분해 & 워커 할당
+ *   [3.  WORKERS Kimi×N]       태스크 병렬 코딩
+ *   [4.  TEST AI]              AI가 단위 테스트 자동 생성
+ *   [5.  DESIGNER Gemini]      UI 코드 디자인 검토
+ *   [6.  REVIEWER Qwen]        전수 보안/품질 검토 + 교육용 상세 리뷰
+ *   [7.  QUALITY GATE]         ESLint + Prettier 품질 게이트
+ *   [8.  SECURITY AI]          Semgrep + AI 보안 스캔
+ *   [9.  SANDBOX + TESTS]      Docker 샌드박스에서 테스트 실행
+ *   [10. FIX AI LOOP]          실패 시 자동 수정 (최대 5회)
+ *   [11. FILE WRITER]          코드 파일 시스템에 자동 적용
+ *   [12. GITHUB PR]            자동 브랜치 생성 + PR 오픈
+ *   [13. NOTIFIER]             Slack 완료 알림
  *
  * 사용법: node orchestrator/index.js --plan ./plan.md --session 1 [--project /root/my-project]
- * v4.1 신규: runDirect() 함수 — plan.md 없이 직접 프롬프트로 실행
+ * v4.1: runDirect() — plan.md 없이 직접 프롬프트로 실행
+ * v5.0: 테스트·품질·보안·샌드박스·자동수정 파이프라인 추가
  */
 
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
@@ -27,6 +33,16 @@ const WorkerPool        = require('./worker-pool');
 const CheckpointManager = require('./checkpoint');
 const FileWriter        = require('./file-writer');
 const GitHubIntegration = require('./github-integration');
+const logger            = require('./logger');
+const TestAgent         = require('./test-agent');
+const TestRunner        = require('./test-runner');
+const QualityGate       = require('./quality-gate');
+const SecurityAgent     = require('./security-agent');
+const FixAgent          = require('./fix-agent');
+const RepoIndexer       = require('./repo-indexer');
+const { buildContextString } = require('./context-engine');
+const RuntimeValidator  = require('./runtime-validator');
+const DeployAgent       = require('./deploy-agent');
 
 /* ── KILL SWITCH ─────────────────────────────────── */
 let killed = false;
@@ -168,7 +184,24 @@ async function run({ planPath, sessionNumber, projectRoot, broadcast, onAgentSta
       log(`⚠️  일부 워커 실패: ${poolResult.errors.map(e => e.error).join(', ')}`, 'warn');
     }
 
-    // ── 4. DESIGNER — UI 디자인 검토 ────────────────
+    // ── 4. TEST AI — 단위 테스트 자동 생성 ─────────
+    checkKilled();
+    const allWorkerFilesForTest = Object.values(workerResults).flatMap(r => r?.files || []);
+    let testFiles = [];
+    if (allWorkerFilesForTest.length > 0 && !checkpoint.isCompleted('test_ai')) {
+      log('🧪 [TEST AI] 단위 테스트 자동 생성 중...');
+      try {
+        const testAgent = new TestAgent();
+        testFiles = await testAgent.generateTests(allWorkerFilesForTest);
+        fs.writeFileSync(checkpoint.filePath('test-files.json'), JSON.stringify(testFiles, null, 2));
+        checkpoint.markCompleted('test_ai');
+        log(`✅ [TEST AI] ${testFiles.length}개 테스트 파일 생성 완료`, 'success');
+      } catch (e) {
+        log(`⚠️  [TEST AI] 테스트 생성 실패: ${e.message}`, 'warn');
+      }
+    }
+
+    // ── 5. DESIGNER — UI 디자인 검토 ────────────────
     checkKilled();
     const allFiles = Object.values(workerResults)
       .flatMap(r => r?.files || [])
@@ -189,7 +222,7 @@ async function run({ planPath, sessionNumber, projectRoot, broadcast, onAgentSta
       log(`✅ [DESIGNER] 디자인 검토 완료 (제안 ${feedback?.suggestions?.length || 0}건)`, 'success');
     }
 
-    // ── 5. REVIEWER — 보안/품질 전수 검토 ──────────
+    // ── 6. REVIEWER — 보안/품질 전수 검토 ──────────
     checkKilled();
     let reviewResult = null;
     if (!checkpoint.isCompleted('reviewer')) {
@@ -209,19 +242,115 @@ async function run({ planPath, sessionNumber, projectRoot, broadcast, onAgentSta
       log(`✅ [REVIEWER] 검토 완료 (점수: ${score}/100, 이슈: ${issues}건)`, 'success');
     }
 
-    // ── 6. FILE WRITER — 실제 파일시스템에 적용 ─────
+    // ── 7. QUALITY GATE — ESLint + Prettier ─────────
     checkKilled();
-    const allWorkerFiles = Object.values(workerResults).flatMap(r => r?.files || []);
+    let allGeneratedFiles = Object.values(workerResults).flatMap(r => r?.files || []);
+    if (!checkpoint.isCompleted('quality_gate')) {
+      log('📐 [QUALITY GATE] 코드 품질 검사 중...');
+      try {
+        const gate = new QualityGate();
+        const gateResult = await gate.run(allGeneratedFiles, { autoFix: true });
+        if (!gateResult.passed) {
+          log(`⚠️  [QUALITY GATE] ${gateResult.issues.length}개 이슈 발견`, 'warn');
+          if (gateResult.autoFixed) {
+            allGeneratedFiles = gateResult.files;
+            log('✅ [QUALITY GATE] AI 자동 수정 완료', 'success');
+          }
+        } else {
+          log('✅ [QUALITY GATE] 통과', 'success');
+        }
+        checkpoint.markCompleted('quality_gate');
+      } catch (e) {
+        log(`⚠️  [QUALITY GATE] 건너뜀: ${e.message}`, 'warn');
+      }
+    }
+
+    // ── 8. SECURITY AI — Semgrep + AI 보안 스캔 ─────
+    checkKilled();
+    if (!checkpoint.isCompleted('security_ai')) {
+      log('🛡 [SECURITY AI] 보안 스캔 중...');
+      try {
+        const secAgent = new SecurityAgent();
+        const secResult = await secAgent.scan(allGeneratedFiles);
+        fs.writeFileSync(checkpoint.filePath('security.json'), JSON.stringify(secResult, null, 2));
+        checkpoint.markCompleted('security_ai');
+        const level = secResult.riskLevel || 'UNKNOWN';
+        log(`✅ [SECURITY AI] 완료 — 위험도: ${level}, 이슈: ${secResult.issues?.length || 0}건`, secResult.passed ? 'success' : 'warn');
+        if (!secResult.passed) {
+          log('⚠️  [SECURITY AI] 고위험 보안 이슈 발견 — 배포 전 검토 필요!', 'warn');
+        }
+      } catch (e) {
+        log(`⚠️  [SECURITY AI] 건너뜀: ${e.message}`, 'warn');
+      }
+    }
+
+    // ── 9. SANDBOX + TESTS — Docker 격리 테스트 ─────
+    checkKilled();
+    let sandboxOk = true;
+    if (testFiles.length > 0 && !checkpoint.isCompleted('sandbox')) {
+      log('🐳 [SANDBOX] 격리 환경에서 테스트 실행 중...');
+      try {
+        const validator = new RuntimeValidator();
+        const sandboxResult = await validator.validate([...allGeneratedFiles, ...testFiles]);
+        fs.writeFileSync(checkpoint.filePath('sandbox.json'), JSON.stringify(sandboxResult, null, 2));
+        checkpoint.markCompleted('sandbox');
+        if (sandboxResult.skipped) {
+          log('ℹ️  [SANDBOX] Docker 미사용 — 건너뜀', 'system');
+        } else if (sandboxResult.ok) {
+          log('✅ [SANDBOX] 모든 테스트 통과', 'success');
+        } else {
+          sandboxOk = false;
+          log(`❌ [SANDBOX] 테스트 실패: ${sandboxResult.errors?.join(', ')}`, 'error');
+        }
+      } catch (e) {
+        log(`⚠️  [SANDBOX] 건너뜀: ${e.message}`, 'warn');
+      }
+    }
+
+    // ── 10. FIX AI LOOP — 자동 수정 (최대 5회) ──────
+    checkKilled();
+    if (!sandboxOk && !checkpoint.isCompleted('fix_loop')) {
+      log('🔧 [FIX AI] 자동 수정 루프 시작...', 'warn');
+      const fixAgent = new FixAgent();
+      let fixAttempt = 0;
+      const maxRetries = parseInt(process.env.MAX_FIX_RETRIES || '5');
+
+      while (!sandboxOk && fixAttempt < maxRetries) {
+        fixAttempt++;
+        log(`🔧 [FIX AI] 수정 시도 ${fixAttempt}/${maxRetries}...`);
+        const fixResult = await fixAgent.repairCode({
+          files: allGeneratedFiles,
+          errors: [],
+          type: 'runtime',
+          attempt: fixAttempt,
+        });
+        if (fixResult.escalate) {
+          log('⚠️  [FIX AI] 최대 시도 초과 — 수동 검토 필요', 'warn');
+          break;
+        }
+        allGeneratedFiles = fixResult.files;
+        const validator2 = new RuntimeValidator();
+        const recheck = await validator2.validate([...allGeneratedFiles, ...testFiles]);
+        if (recheck.ok || recheck.skipped) {
+          sandboxOk = true;
+          log(`✅ [FIX AI] ${fixAttempt}번 시도만에 수정 완료`, 'success');
+        }
+      }
+      checkpoint.markCompleted('fix_loop');
+    }
+
+    // ── 11. FILE WRITER — 실제 파일시스템에 적용 ────
+    checkKilled();
     let writeResult = { total: 0, success: false, errors: [] };
     let prResult = null;
 
-    if (allWorkerFiles.length > 0 && !checkpoint.isCompleted('file_writer')) {
+    if (allGeneratedFiles.length > 0 && !checkpoint.isCompleted('file_writer')) {
       const applyFiles = process.env.AUTO_APPLY_FILES !== 'false'; // 기본 ON
       if (applyFiles && projectRoot) {
-        log(`💾 [FILE WRITER] ${allWorkerFiles.length}개 파일 적용 중...`);
-        agentStart('integrator', `${allWorkerFiles.length}개 파일 적용 중...`);
+        log(`💾 [FILE WRITER] ${allGeneratedFiles.length}개 파일 적용 중...`);
+        agentStart('integrator', `${allGeneratedFiles.length}개 파일 적용 중...`);
         const writer = new FileWriter(projectRoot, { backup: true, dryRun: false });
-        writeResult = writer.writeAll(allWorkerFiles);
+        writeResult = writer.writeAll(allGeneratedFiles);
         if (writeResult.errors.length > 0) {
           log(`⚠️  ${writeResult.errors.length}개 파일 쓰기 오류: ${writeResult.errors.map(e => e.path).join(', ')}`, 'warn');
         }
@@ -236,7 +365,7 @@ async function run({ planPath, sessionNumber, projectRoot, broadcast, onAgentSta
       }
     }
 
-    // ── 7. GITHUB PR — 자동 브랜치 + PR 생성 ─────────
+    // ── 12. GITHUB PR — 자동 브랜치 + PR 생성 ────────
     if (process.env.GITHUB_TOKEN && projectRoot && !checkpoint.isCompleted('github_pr')) {
       checkKilled();
       log('🐙 [GITHUB PR] 브랜치 생성 및 PR 오픈 중...');
@@ -253,7 +382,7 @@ async function run({ planPath, sessionNumber, projectRoot, broadcast, onAgentSta
         sessionNumber,
         sessionTitle: session.title,
         tasksCount: session.tasks.length,
-        filesChanged: allWorkerFiles.length,
+        filesChanged: allGeneratedFiles.length,
         cost: tracker.summary().totalUSD,
         reviewScore: reviewResult?.score,
         summary: reviewResult?.issues?.slice(0, 3).map(i => `- **${i.severity}**: ${i.message}`).join('\n'),
@@ -274,11 +403,11 @@ async function run({ planPath, sessionNumber, projectRoot, broadcast, onAgentSta
       }
     }
 
-    // ── 8. 최종 리포트 ───────────────────────────────
+    // ── 13. 최종 리포트 ──────────────────────────────
     checkKilled();
     const duration = ((Date.now() - startTime) / 1000).toFixed(1);
     const costSummary = tracker.summary();
-    const filesChanged = allWorkerFiles.length;
+    const filesChanged = allGeneratedFiles.length;
 
     const summary = [
       `Session ${sessionNumber} 완료`,

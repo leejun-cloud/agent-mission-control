@@ -29,9 +29,13 @@ const wss    = new WebSocket.Server({ server });
 
 const PORT         = process.env.PORT || 4000;
 const PASSWORD     = process.env.DASHBOARD_PASSWORD || 'changeme';
-const SECRET       = process.env.JWT_SECRET || 'dev-secret-change-in-production';
 const DEFAULT_ROOT = process.env.PROJECT_ROOT || process.cwd();
 const EXPIRY       = process.env.TOKEN_EXPIRY || '24h';
+
+if (!process.env.JWT_SECRET) {
+  console.error('⚠️  [SECURITY] JWT_SECRET 미설정 — .env에 강한 값을 반드시 설정하세요!');
+}
+const SECRET = process.env.JWT_SECRET || 'dev-secret-CHANGE-THIS-IN-PRODUCTION';
 
 // ── 다중 프로젝트 설정 ────────────────────────────────
 let projects = [];
@@ -88,19 +92,29 @@ function checkRateLimit(ip) {
   return data.count <= 10;
 }
 
-// ── 위험 명령어 감지 (경고는 하되 차단하진 않음) ────────
+// ── 위험 명령어 패턴 (SHELL_BLOCK_DANGEROUS=true 시 차단) ────
 const DANGEROUS_PATTERNS = [
   /\brm\s+-rf\s+\//,
   /\bdd\s+if=/,
   /\bmkfs\b/,
-  /\b:(){ :|:& };:/,
+  /\b:\(\)\s*\{/,
   /\bchmod\s+-R\s+777\s+\//,
   /\bshutdown\b/,
   /\breboot\b/,
+  /\bcurl\b.*\|\s*(ba)?sh/,
+  /\bwget\b.*-O\s*-\s*\|/,
 ];
+
+const BLOCK_DANGEROUS = process.env.SHELL_BLOCK_DANGEROUS !== 'false'; // 기본 ON
 
 function isDangerous(command) {
   return DANGEROUS_PATTERNS.some(p => p.test(command));
+}
+
+// 커스텀 미션 명령어 허용 문자 검증
+const SAFE_CMD_PATTERN = /^[a-zA-Z0-9_.\/\-]+$/;
+function isSafeCommand(cmd) {
+  return SAFE_CMD_PATTERN.test(cmd);
 }
 
 // ── 쉘 명령 실행 이력 ──────────────────────────────────
@@ -133,6 +147,9 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 app.use((req, res, next) => {
   const origin = process.env.ALLOWED_ORIGIN || '*';
+  if (origin === '*' && process.env.NODE_ENV === 'production') {
+    console.warn('⚠️  [SECURITY] ALLOWED_ORIGIN=* in production. Set a specific origin in .env');
+  }
   res.setHeader('Access-Control-Allow-Origin', origin);
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
@@ -354,7 +371,10 @@ app.get('/api/missions/custom', auth, (req, res) => {
 app.post('/api/missions/custom', auth, (req, res) => {
   const { id, label, command } = req.body;
   if (!id || !label || !command) return res.status(400).json({ error: 'id, label, command 필수' });
-  const parts = command.split(' ');
+  const parts = command.trim().split(/\s+/);
+  if (!isSafeCommand(parts[0])) {
+    return res.status(400).json({ error: `허용되지 않는 명령어: ${parts[0]}` });
+  }
   customMissions[id] = { label, cmd: parts[0], args: parts.slice(1) };
   saveCustomMissions();
   res.json({ ok: true, missions: customMissions });
@@ -374,6 +394,13 @@ app.post('/api/shell', auth, (req, res) => {
   const dangerous = isDangerous(command);
   const execDir = cwd || currentProject.root;
   const jobId = `shell-${Date.now()}`;
+
+  // 위험 명령어 차단 (기본 ON)
+  if (dangerous && BLOCK_DANGEROUS) {
+    shellHistory.unshift({ id: jobId, command, cwd: execDir, dangerous, blocked: true, timestamp: new Date().toISOString() });
+    if (shellHistory.length > MAX_SHELL_HISTORY) shellHistory.pop();
+    return res.status(403).json({ error: `🛑 위험한 명령어가 차단되었습니다: ${command}` });
+  }
 
   // 이력 저장
   shellHistory.unshift({ id: jobId, command, cwd: execDir, dangerous, timestamp: new Date().toISOString() });
