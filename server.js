@@ -476,6 +476,16 @@ app.get('/api/logs/:filename', auth, (req, res) => {
   res.json({ filename, content: content.slice(-5000) });
 });
 
+// ── API: 감사 로그 (구조화된 JSONL) ──────────────────
+app.get('/api/logs/audit/entries', auth, (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit || '200'), 500);
+  const stage = req.query.stage || null;
+  const logger = require('./orchestrator/logger');
+  let entries = logger.readRecent(limit);
+  if (stage) entries = entries.filter(e => e.stage === stage);
+  res.json({ entries, total: entries.length });
+});
+
 // ── API: 긴급 정지 (Kill Switch) ──────────────────────
 app.post('/api/emergency-stop', auth, (req, res) => {
   // 실행 중인 모든 작업 중지

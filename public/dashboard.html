@@ -751,6 +751,7 @@ body::before {
         <button class="tab-btn" onclick="switchTab('orchestrate', this)">ORCHESTRATE</button>
         <button class="tab-btn" onclick="switchTab('qa', this)">🧪 QA TEST</button>
         <button class="tab-btn" onclick="switchTab('shell', this)">SHELL</button>
+        <button class="tab-btn" onclick="switchTab('logs', this)">📋 LOGS</button>
         <div class="tab-spacer"></div>
         <button class="tab-clear-btn" onclick="clearTerminal()">CLEAR</button>
       </div>
@@ -998,6 +999,30 @@ body::before {
         </div>
       </div>
 
+      <!-- TAB: LOGS (감사 로그 뷰어) -->
+      <div class="tab-pane" id="pane-logs" style="flex-direction:column;gap:0">
+        <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border);background:var(--surface2)">
+          <span style="font-size:11px;font-weight:700;color:var(--text);font-family:var(--mono)">📋 파이프라인 감사 로그</span>
+          <select id="log-stage-filter" style="background:var(--surface1);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:2px 6px;font-size:10px;font-family:var(--mono)" onchange="loadAuditLogs()">
+            <option value="">전체 스테이지</option>
+            <option value="repo-indexer">repo-indexer</option>
+            <option value="context-engine">context-engine</option>
+            <option value="plan-generator">plan-generator</option>
+            <option value="test-agent">test-agent</option>
+            <option value="quality-gate">quality-gate</option>
+            <option value="security-agent">security-agent</option>
+            <option value="sandbox">sandbox</option>
+            <option value="fix-agent">fix-agent</option>
+          </select>
+          <div style="flex:1"></div>
+          <button class="tab-clear-btn" onclick="loadAuditLogs()" style="font-size:9px">↻ 새로고침</button>
+          <button class="tab-clear-btn" onclick="clearAuditLogView()" style="font-size:9px">CLEAR VIEW</button>
+        </div>
+        <div id="log-entries" style="flex:1;overflow-y:auto;font-family:var(--mono);font-size:10px;padding:0">
+          <div style="color:var(--muted2);padding:20px;text-align:center">로그를 불러오는 중...</div>
+        </div>
+      </div>
+
     </div><!-- rpanel -->
   </div><!-- main-grid -->
 </div><!-- app -->
@@ -1122,6 +1147,53 @@ function switchTab(name, el) {
     loadQaPlanSessions();
     loadQaResults();
   }
+  if (name === 'logs') loadAuditLogs();
+}
+
+/* ── 감사 로그 뷰어 ───────────────────────────────── */
+const LOG_STATUS_COLOR = { ok: '#34d399', error: '#f87171', warn: '#fbbf24', start: '#60a5fa' };
+const LOG_STAGE_ICON   = { 'repo-indexer': '📂', 'context-engine': '🔍', 'plan-generator': '✨', 'test-agent': '🧪', 'test-runner': '🏃', 'quality-gate': '📐', 'security-agent': '🛡', 'sandbox': '🐳', 'fix-agent': '🔧', 'deploy-agent': '🚀' };
+
+async function loadAuditLogs() {
+  const stage = document.getElementById('log-stage-filter')?.value || '';
+  const container = document.getElementById('log-entries');
+  if (!container) return;
+  try {
+    const url = `/api/logs/audit/entries?limit=200${stage ? '&stage=' + stage : ''}`;
+    const res  = await apiFetch(url);
+    const data = await res.json();
+    if (!res.ok) { container.innerHTML = `<div style="color:#f87171;padding:20px">${data.error}</div>`; return; }
+    if (!data.entries || data.entries.length === 0) {
+      container.innerHTML = '<div style="color:var(--muted2);padding:20px;text-align:center">아직 로그가 없습니다. 파이프라인을 실행하면 여기에 기록됩니다.</div>';
+      return;
+    }
+    container.innerHTML = [...data.entries].reverse().map(e => {
+      const color  = LOG_STATUS_COLOR[e.status] || '#94a3b8';
+      const icon   = LOG_STAGE_ICON[e.stage] || '⚙️';
+      const ts     = e.ts ? new Date(e.ts).toLocaleTimeString('ko-KR') : '--:--:--';
+      const cost   = e.costUSD ? `<span style="color:#a78bfa">$${e.costUSD.toFixed(4)}</span>` : '';
+      const tokens = e.tokens  ? `<span style="color:#64748b">${e.tokens}tok</span>` : '';
+      const dur    = e.duration ? `<span style="color:#475569">${e.duration}ms</span>` : '';
+      const model  = e.model   ? `<span style="color:#475569">${e.model.split('/').pop()}</span>` : '';
+      const extra  = e.data    ? `<div style="color:#475569;padding:2px 0 2px 20px;word-break:break-all">${JSON.stringify(e.data).slice(0, 120)}</div>` : '';
+      return `<div style="border-bottom:1px solid #1e293b;padding:5px 14px">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span style="color:#475569">${ts}</span>
+          <span style="color:${color};font-weight:700">${e.status?.toUpperCase()}</span>
+          <span>${icon} <span style="color:var(--text)">${e.stage}</span></span>
+          ${e.role ? `<span style="color:#7dd3fc">${e.role}</span>` : ''}
+          ${model} ${tokens} ${dur} ${cost}
+        </div>${extra}
+      </div>`;
+    }).join('');
+  } catch (err) {
+    container.innerHTML = `<div style="color:#f87171;padding:20px">로드 실패: ${err.message}</div>`;
+  }
+}
+
+function clearAuditLogView() {
+  const c = document.getElementById('log-entries');
+  if (c) c.innerHTML = '<div style="color:var(--muted2);padding:20px;text-align:center">뷰 초기화됨 (파일은 유지됩니다)</div>';
 }
 
 /* ── PROJECTS ─────────────────────────────────────── */
