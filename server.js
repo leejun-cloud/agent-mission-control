@@ -1,5 +1,5 @@
 /**
- * Agent Mission Control Server (v4.1)
+ * Agent Mission Control Server (v5.0)
  * 자율형 AI 오케스트라 플랫폼 — 독립 프로젝트
  *
  * v3.0 → v4.1 변경사항:
@@ -520,7 +520,7 @@ wss.on('connection', (ws, req) => {
     return;
   }
 
-  ws.send(JSON.stringify({ type: 'connected', data: '✅ Mission Control v3.0 연결됨' }));
+  ws.send(JSON.stringify({ type: 'connected', data: '✅ Mission Control v5.0 연결됨' }));
 
   const logFile = path.join(currentProject.root, '.agents', 'logs', 'build-sentinel.log');
   if (fs.existsSync(logFile)) {
